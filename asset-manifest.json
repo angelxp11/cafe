@@ -1,0 +1,26 @@
+{
+  "files": {
+    "main.css": "/cafe/static/css/main.33e096e5.css",
+    "main.js": "/cafe/static/js/main.0cbbe6b3.js",
+    "static/js/453.e8d36398.chunk.js": "/cafe/static/js/453.e8d36398.chunk.js",
+    "static/media/200.svg": "/cafe/static/media/200.4423fddde075d4b39b9ea9f30656fcb9.svg",
+    "static/media/500.svg": "/cafe/static/media/500.302bf3d5ded6fa5a526616acd9adbbc9.svg",
+    "static/media/50.svg": "/cafe/static/media/50.6dd66658a75083e327cf805696389fe0.svg",
+    "static/media/1000.svg": "/cafe/static/media/1000.86eb9fc067c9e86de8bf5841be9bab23.svg",
+    "static/media/100.svg": "/cafe/static/media/100.c10a8990cac9285c5a56668a0441899e.svg",
+    "static/media/50000.svg": "/cafe/static/media/50000.d439bad4cca6770934875d54bac1f611.svg",
+    "static/media/20000.svg": "/cafe/static/media/20000.90eed1abf869d1a25aa3197fa3763525.svg",
+    "static/media/100000.svg": "/cafe/static/media/100000.a2283c23d999da044ea18dbd0be441a3.svg",
+    "static/media/10000.svg": "/cafe/static/media/10000.f39009cb19b436cf175173839a9f4672.svg",
+    "static/media/5000.svg": "/cafe/static/media/5000.1280a2dac0a6fab2aace970527f75b7a.svg",
+    "static/media/2000.svg": "/cafe/static/media/2000.2655c515970503b66ca71a7fbdbc2134.svg",
+    "index.html": "/cafe/index.html",
+    "main.33e096e5.css.map": "/cafe/static/css/main.33e096e5.css.map",
+    "main.0cbbe6b3.js.map": "/cafe/static/js/main.0cbbe6b3.js.map",
+    "453.e8d36398.chunk.js.map": "/cafe/static/js/453.e8d36398.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.33e096e5.css",
+    "static/js/main.0cbbe6b3.js"
+  ]
+}

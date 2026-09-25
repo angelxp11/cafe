@@ -1,0 +1,195 @@
+.auth-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 28px;
+  box-sizing: border-box;
+  background: linear-gradient(145deg, var(--color-background), var(--color-hover));
+}
+
+.auth-card {
+  width: min(100%, 430px);
+  padding: 42px clamp(24px, 6vw, 48px);
+  box-sizing: border-box;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  box-shadow: 0 18px 45px rgba(62, 39, 35, 0.12);
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 36px;
+  color: var(--color-primary);
+  font-size: 1.35rem;
+  font-weight: var(--font-bold);
+}
+
+.auth-brand svg {
+  font-size: 1.7rem;
+}
+
+.auth-eyebrow {
+  margin: 0 0 8px;
+  color: var(--color-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.auth-card h1 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: clamp(1.8rem, 5vw, 2.3rem);
+}
+
+.auth-description {
+  margin: 10px 0 28px;
+  color: var(--color-text-secondary);
+}
+
+.auth-form {
+  display: grid;
+  gap: 9px;
+}
+
+.auth-form label {
+  margin-top: 8px;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-semibold);
+}
+
+.auth-form input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  box-sizing: border-box;
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.auth-form input:focus {
+  border-color: var(--color-focus);
+  box-shadow: 0 0 0 3px rgba(192, 139, 92, 0.2);
+}
+
+.auth-password-field {
+  position: relative;
+}
+
+.auth-password-field input {
+  padding-right: 46px;
+}
+
+.auth-password-field button {
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.auth-password-field button:hover,
+.auth-password-field button:focus-visible {
+  background: var(--color-hover);
+  color: var(--color-primary);
+  outline: none;
+}
+
+.password-meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 20px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.password-meter-track {
+  width: 96px;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--color-border-light);
+}
+
+.password-meter-fill {
+  display: block;
+  height: 100%;
+  transition: width 0.2s ease, background-color 0.2s ease;
+}
+
+.password-empty { width: 0; }
+.password-weak { width: 33%; background: var(--color-error); }
+.password-medium { width: 66%; background: var(--color-warning); }
+.password-strong { width: 100%; background: var(--color-success); }
+
+.auth-submit {
+  min-height: 48px;
+  margin-top: 17px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--button-primary);
+  color: var(--color-text-light);
+  cursor: pointer;
+  font-weight: var(--font-semibold);
+  transition: background-color 0.2s ease;
+}
+
+.auth-submit:hover,
+.auth-submit:focus-visible {
+  background: var(--button-primary-hover);
+  outline: none;
+}
+
+.auth-switch {
+  margin: 26px 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.auth-switch button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  cursor: pointer;
+  font: inherit;
+  font-weight: var(--font-bold);
+}
+
+.auth-switch button:hover,
+.auth-switch button:focus-visible {
+  color: var(--button-primary-hover);
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .auth-page { padding: 16px; }
+  .auth-card { padding: 30px 22px; }
+}
+
+.auth-form #register-first-name,
+.auth-form #register-last-name {
+  text-transform: uppercase;
+}
+
+.auth-form input[type='email'] {
+  text-transform: lowercase;
+}

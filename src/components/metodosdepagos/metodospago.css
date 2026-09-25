@@ -1,0 +1,133 @@
+.payment-methods-page {
+	max-width: 1100px;
+	margin: 0 auto;
+}
+
+.payment-methods-header {
+	display: flex;
+	align-items: end;
+	justify-content: space-between;
+	gap: 24px;
+	margin-bottom: 28px;
+}
+
+.payment-methods-header h1 {
+	margin: 0;
+}
+
+.payment-methods-intro {
+	margin: 8px 0 0;
+	color: var(--color-text-secondary);
+}
+
+.payment-methods-form {
+	display: grid;
+	grid-template-columns: 1.4fr 1fr auto;
+	align-items: end;
+	gap: 12px;
+	margin-bottom: 24px;
+	padding: 18px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-surface);
+}
+
+.payment-methods-form label {
+	display: grid;
+	gap: 6px;
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-sm);
+	font-weight: var(--font-semibold);
+}
+
+.payment-methods-form input,
+.payment-methods-form select {
+	min-height: 40px;
+	padding: 0 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 4px;
+	background: var(--color-background);
+	font: inherit;
+}
+
+.payment-methods-add {
+	min-height: 40px;
+	padding: 0 18px;
+	border: 0;
+	border-radius: 4px;
+	background: var(--button-primary);
+	color: var(--color-text-light);
+	cursor: pointer;
+	font: inherit;
+	font-weight: var(--font-semibold);
+}
+
+.payment-methods-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+	gap: 14px;
+}
+
+.payment-method-card {
+	display: grid;
+	gap: 10px;
+	padding: 20px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-surface);
+}
+
+.payment-method-card header,
+.payment-method-balance {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.payment-method-card header strong {
+	font-size: var(--font-size-lg);
+}
+
+.payment-method-type {
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
+	text-transform: uppercase;
+}
+
+.payment-method-balance {
+	padding-top: 12px;
+	border-top: 1px solid var(--color-border-light);
+}
+
+.payment-method-balance strong {
+	color: var(--color-total);
+	font-size: 1.35rem;
+}
+
+.payment-method-delete {
+	width: fit-content;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--color-error);
+	cursor: pointer;
+	font: inherit;
+	font-size: var(--font-size-xs);
+}
+
+.payment-methods-empty {
+	padding: 28px;
+	border: 1px dashed var(--color-border);
+	color: var(--color-text-secondary);
+	text-align: center;
+}
+
+@media (max-width: 700px) {
+	.payment-methods-header,
+	.payment-methods-form {
+		align-items: stretch;
+		grid-template-columns: 1fr;
+		flex-direction: column;
+	}
+}

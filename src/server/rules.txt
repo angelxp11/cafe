@@ -1,0 +1,228 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /usuarios/{correo} {
+      allow create: if request.auth != null
+        && request.auth.token.email == correo
+        && request.resource.data.correo == correo
+        && request.resource.data.rol == 'empleado'
+        && request.resource.data.activo == true
+        && request.resource.data.nombre is string
+        && request.resource.data.apellido is string;
+      allow read: if request.auth != null
+        && (request.auth.token.email == correo || get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin');
+      allow update: if request.auth != null
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activo'])
+        && request.resource.data.activo is bool;
+      allow delete: if false;
+    }
+
+    match /pisos/{pisoId} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if request.auth != null
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin';
+    }
+
+    match /mesas/{mesaId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin';
+      allow delete: if request.auth != null
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin';
+      allow update: if request.auth != null
+        && (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin'
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['grupoId', 'estado'])
+            && request.resource.data.grupoId is string
+            && request.resource.data.estado == 'combinada')
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['grupoId', 'estado', 'pedido', 'pedidoDesde', 'ultimoPedidoEn'])
+            && request.resource.data.grupoId is string
+            && request.resource.data.estado == 'combinada'
+            && request.resource.data.pedido is list
+            && request.resource.data.pedidoDesde is int
+            && request.resource.data.ultimoPedidoEn is int)
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['descripcion'])
+            && request.resource.data.descripcion is string)
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pedido', 'pedidoDesde', 'ultimoPedidoEn'])
+            && request.resource.data.pedido is list
+            && request.resource.data.pedidoDesde is int
+            && request.resource.data.ultimoPedidoEn is int)
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pedido', 'pedidoDesde', 'ultimoPedidoEn', 'grupoId', 'estado', 'descripcion'])
+            && request.resource.data.pedido is list
+            && request.resource.data.pedidoDesde is int
+            && request.resource.data.ultimoPedidoEn is int
+            && request.resource.data.estado == 'disponible'
+            && !request.resource.data.keys().hasAny(['grupoId'])));
+    }
+
+    match /inventario/{productoId} {
+      // Los usuarios autenticados pueden consultar los productos para armar pedidos.
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin';
+    }
+
+    match /metodosPago/{metodoId} {
+      allow read: if request.auth != null;
+      allow create, delete: if request.auth != null
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin';
+      allow update: if request.auth != null
+        && (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin'
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['saldo'])
+            && request.resource.data.saldo is number));
+    }
+
+    match /turnos/{turnoId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.estado == 'abierto'
+        && request.resource.data.abierto == true
+        && request.resource.data.apertura.empleadoCorreo == request.auth.token.email;
+      allow update: if request.auth != null
+        && resource.data.abierto == true
+        && request.resource.data.abierto == false
+        && request.resource.data.estado == 'cerrado'
+        && request.resource.data.cierre.empleadoCorreo == request.auth.token.email
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'abierto', 'cierre']);
+      allow delete: if false;
+    }
+
+    match /configuracion/{configId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && configId == 'turnoActual'
+        && request.resource.data.turnoId is string
+        && ((request.resource.data.abierto == true
+            && getAfter(/databases/$(database)/documents/turnos/$(request.resource.data.turnoId)).data.abierto == true
+            && getAfter(/databases/$(database)/documents/turnos/$(request.resource.data.turnoId)).data.apertura.empleadoCorreo == request.auth.token.email)
+          || (request.resource.data.abierto == false
+            && getAfter(/databases/$(database)/documents/turnos/$(request.resource.data.turnoId)).data.abierto == false
+            && getAfter(/databases/$(database)/documents/turnos/$(request.resource.data.turnoId)).data.cierre.empleadoCorreo == request.auth.token.email));
+      allow delete: if false;
+    }
+
+    match /movimientos/{movimientoId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.turnoId is string
+        && request.resource.data.tipo is string
+        && request.resource.data.metodoId is string
+        && request.resource.data.monto is number
+        && request.resource.data.creadoPorCorreo == request.auth.token.email
+        && getAfter(/databases/$(database)/documents/configuracion/turnoActual).data.turnoId == request.resource.data.turnoId
+        && ((request.resource.data.tipo == 'cierre'
+            && getAfter(/databases/$(database)/documents/configuracion/turnoActual).data.abierto == false
+            && getAfter(/databases/$(database)/documents/turnos/$(request.resource.data.turnoId)).data.abierto == false)
+          || (request.resource.data.tipo != 'cierre'
+            && getAfter(/databases/$(database)/documents/configuracion/turnoActual).data.abierto == true
+            && getAfter(/databases/$(database)/documents/turnos/$(request.resource.data.turnoId)).data.abierto == true));
+      allow update, delete: if false;
+    }
+
+    match /pagos/{pagoId} {
+      allow read: if request.auth != null
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin';
+      allow create: if request.auth != null
+        && request.resource.data.mesaId is string
+        && request.resource.data.metodoPagoId is string
+        && request.resource.data.metodoPago is string
+        && request.resource.data.monto is number
+        && request.resource.data.pedido is list;
+      allow update, delete: if false;
+    }
+
+    match /facturas/{facturaId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.mesaId is string
+        && request.resource.data.metodoPago is string
+        && request.resource.data.monto is number
+        && request.resource.data.pedido is list
+        && request.resource.data.registradaPorCorreo == request.auth.token.email
+        && (request.resource.data.tipo != 'credito_cliente'
+          || (getAfter(/databases/$(database)/documents/cuentasCliente/$(facturaId)).data.clienteId == request.resource.data.clienteId
+            && getAfter(/databases/$(database)/documents/cuentasCliente/$(facturaId)).data.total == request.resource.data.monto
+            && getAfter(/databases/$(database)/documents/cuentasCliente/$(facturaId)).data.turnoId == request.resource.data.turnoId))
+        && (request.resource.data.tipo != 'abono_cliente'
+          || (getAfter(/databases/$(database)/documents/cuentasCliente/$(request.resource.data.cuentaClienteId)).data.ultimaFacturaId == facturaId
+            && getAfter(/databases/$(database)/documents/cuentasCliente/$(request.resource.data.cuentaClienteId)).data.saldoPendiente == request.resource.data.saldoRestante
+            && getAfter(/databases/$(database)/documents/cuentasCliente/$(request.resource.data.cuentaClienteId)).data.clienteId == request.resource.data.clienteId));
+      allow update: if request.auth != null
+        && ((get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['mesaNombre', 'observacion', 'editadaPor', 'editadaEn'])
+          && request.resource.data.mesaNombre is string
+          && request.resource.data.observacion is string
+          && request.resource.data.editadaPor == request.auth.token.email
+          && request.resource.data.editadaEn is timestamp)
+          || (resource.data.tipo == 'credito_cliente'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['saldoRestante', 'estado', 'ultimaFacturaAbonoId', 'actualizadaEn'])
+            && request.resource.data.saldoRestante is number
+            && request.resource.data.saldoRestante >= 0
+            && request.resource.data.saldoRestante < resource.data.saldoRestante
+            && request.resource.data.estado == (request.resource.data.saldoRestante == 0 ? 'pagada' : 'pendiente')
+            && request.resource.data.ultimaFacturaAbonoId is string
+            && request.resource.data.actualizadaEn is timestamp
+            && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimaFacturaAbonoId)).data.tipo == 'abono_cliente'
+            && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimaFacturaAbonoId)).data.cuentaClienteId == resource.data.cuentaClienteId
+            && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimaFacturaAbonoId)).data.clienteId == resource.data.clienteId
+            && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimaFacturaAbonoId)).data.monto == resource.data.saldoRestante - request.resource.data.saldoRestante
+            && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimaFacturaAbonoId)).data.registradaPorCorreo == request.auth.token.email
+            && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimaFacturaAbonoId)).data.turnoId == getAfter(/databases/$(database)/documents/configuracion/turnoActual).data.turnoId
+            && getAfter(/databases/$(database)/documents/cuentasCliente/$(resource.data.cuentaClienteId)).data.saldoPendiente == request.resource.data.saldoRestante
+            && getAfter(/databases/$(database)/documents/cuentasCliente/$(resource.data.cuentaClienteId)).data.ultimaFacturaId == request.resource.data.ultimaFacturaAbonoId
+            && getAfter(/databases/$(database)/documents/configuracion/turnoActual).data.abierto == true));
+      allow delete: if false;
+    }
+
+    match /clientes/{clienteId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.resource.data.nombre is string
+        && request.resource.data.nombre.size() > 0
+        && request.resource.data.telefono is string
+        && request.resource.data.telefono.size() > 0;
+      allow delete: if false;
+    }
+
+    match /cuentasCliente/{cuentaId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.clienteId is string
+        && request.resource.data.clienteNombre is string
+        && request.resource.data.pedido is list
+        && request.resource.data.total is number
+        && request.resource.data.saldoPendiente == request.resource.data.total
+        && request.resource.data.turnoId is string
+        && request.resource.data.creadaPorCorreo == request.auth.token.email
+        && getAfter(/databases/$(database)/documents/configuracion/turnoActual).data.turnoId == request.resource.data.turnoId
+        && getAfter(/databases/$(database)/documents/configuracion/turnoActual).data.abierto == true
+        && getAfter(/databases/$(database)/documents/facturas/$(cuentaId)).data.tipo == 'credito_cliente'
+        && getAfter(/databases/$(database)/documents/facturas/$(cuentaId)).data.cuentaClienteId == cuentaId
+        && getAfter(/databases/$(database)/documents/facturas/$(cuentaId)).data.monto == request.resource.data.total;
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['saldoPendiente', 'estado', 'ultimaFacturaId', 'actualizadaEn'])
+        && request.resource.data.saldoPendiente is number
+        && request.resource.data.saldoPendiente >= 0
+        && request.resource.data.saldoPendiente < resource.data.saldoPendiente
+        && request.resource.data.estado == (request.resource.data.saldoPendiente == 0 ? 'pagada' : 'pendiente')
+        && request.resource.data.ultimaFacturaId is string
+        && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimaFacturaId)).data.cuentaClienteId == cuentaId
+        && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimaFacturaId)).data.clienteId == resource.data.clienteId
+        && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimaFacturaId)).data.tipo == 'abono_cliente'
+        && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimaFacturaId)).data.monto == resource.data.saldoPendiente - request.resource.data.saldoPendiente
+        && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimaFacturaId)).data.turnoId == getAfter(/databases/$(database)/documents/configuracion/turnoActual).data.turnoId;
+      allow delete: if false;
+    }
+
+    match /categorias/{categoriaId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin';
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

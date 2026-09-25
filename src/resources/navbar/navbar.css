@@ -1,0 +1,330 @@
+/* ==========================================================================
+   Navbar — un solo elemento (.sidebar) que hace de rail cuando está
+   colapsado (solo íconos) y de panel completo cuando está abierto
+   (íconos + texto). Ya no existen dos elementos superpuestos.
+
+   RTL: se usan propiedades lógicas (inset-inline-*, border-inline-*,
+   margin-inline-*) para que todo responda a dir="rtl" en el documento.
+   ========================================================================== */
+
+:root {
+  --sidebar-collapsed-width: 76px;
+  --sidebar-expanded-width: 248px;
+}
+
+.sidebar-toggle,
+.sidebar-overlay,
+.sidebar-brand,
+.sidebar-link {
+  border: 0;
+  cursor: pointer;
+}
+
+/* --------------------------------------------------------------------------
+   Overlay (backdrop) — solo tiene efecto visual en móvil, ver media query
+   -------------------------------------------------------------------------- */
+
+.sidebar-overlay {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(45, 33, 27, 0.58);
+  cursor: default;
+  animation: sidebar-overlay-in 0.2s ease-out;
+}
+
+@keyframes sidebar-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (min-width: 641px) {
+  .sidebar-overlay {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Sidebar — único elemento
+   Colapsado: ancho fijo, solo íconos (comportamiento de "rail")
+   Abierto (.sidebar-open): se ensancha y se ve el texto
+   -------------------------------------------------------------------------- */
+
+.sidebar {
+  position: fixed;
+  z-index: 1001;
+  inset-block: 0;
+  inset-inline-start: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: var(--sidebar-collapsed-width);
+  padding-block: 24px;
+  box-sizing: border-box;
+  background: var(--color-sidebar);
+  color: var(--color-text-light);
+  box-shadow: 4px 0 16px rgba(45, 33, 27, 0.12);
+  overflow: hidden;
+  transition: width 0.25s ease;
+}
+
+.sidebar-open {
+  z-index: 1003;
+  width: var(--sidebar-expanded-width);
+  box-shadow: 8px 0 24px rgba(45, 33, 27, 0.22);
+}
+
+/* Brand / toggle: es el mismo botón que colapsa y expande */
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 12px;
+  margin-bottom: 12px;
+  background: transparent;
+  border-block-end: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.sidebar-open .sidebar-brand {
+  justify-content: flex-start;
+  padding-inline: 22px;
+}
+
+.sidebar-brand-name {
+  color: var(--color-background);
+  font-size: 1.25rem;
+  font-weight: var(--font-semibold);
+  white-space: nowrap;
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  transition: opacity 0.2s ease;
+}
+
+.sidebar-open .sidebar-brand-name {
+  opacity: 1;
+  max-width: 140px;
+  transition: opacity 0.2s ease 0.08s;
+  padding-left: 12px;
+}
+
+.sidebar-coffee-icon {
+  width: 38px;
+  height: 38px;
+  color: var(--color-surface);
+  flex-shrink: 0;
+}
+
+/* Navegación: un solo set de enlaces, ya no hay una lista duplicada */
+
+.sidebar-navigation {
+  display: grid;
+  gap: 8px;
+  padding-inline: 10px;
+}
+
+.sidebar-logout {
+  margin: auto 10px 0;
+  width: calc(100% - 20px);
+}
+
+.sidebar-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding-inline: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-light);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-medium);
+  white-space: nowrap;
+  transition: background-color 0.2s ease, color 0.2s ease, justify-content 0.2s ease;
+}
+
+.sidebar-open .sidebar-link {
+  justify-content: flex-start;
+  padding-inline: 16px;
+}
+
+.sidebar-link:hover,
+.sidebar-link:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+
+.sidebar-link-active {
+  background: var(--color-secondary);
+  color: var(--color-surface);
+}
+
+.sidebar-link-active:hover,
+.sidebar-link-active:focus-visible {
+  background: var(--button-secondary-hover);
+}
+
+.sidebar-link-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.sidebar-link span {
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  transition: opacity 0.2s ease;
+}
+
+.sidebar-open .sidebar-link span {
+  opacity: 1;
+  max-width: 160px;
+  transition: opacity 0.2s ease 0.08s;
+}
+
+/* --------------------------------------------------------------------------
+   Ícono de café (decorativo)
+   -------------------------------------------------------------------------- */
+
+.sidebar-cup-container {
+  position: relative;
+  width: 48px;
+  height: 58px;
+}
+
+.sidebar-cup {
+  position: absolute;
+  bottom: 5px;
+  inset-inline-start: 3px;
+  width: 36px;
+  height: 29px;
+  border-radius: 0 0 15px 15px;
+  background: var(--color-surface);
+  box-shadow: inset 0 -5px 8px rgba(45, 33, 27, 0.16);
+}
+
+.sidebar-cup::before {
+  position: absolute;
+  top: -4px;
+  inset-inline-start: 0;
+  width: 36px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  content: '';
+}
+
+.sidebar-cup-handle {
+  position: absolute;
+  inset-inline-end: 2px;
+  bottom: 12px;
+  width: 12px;
+  height: 15px;
+  border: 4px solid var(--color-surface);
+  border-inline-start: 0;
+  border-radius: 0 10px 10px 0;
+}
+
+.sidebar-cup-saucer {
+  position: absolute;
+  bottom: 0;
+  inset-inline-start: 0;
+  width: 44px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-surface);
+}
+
+.sidebar-steam {
+  position: absolute;
+  top: 1px;
+  width: 3px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--color-background);
+  opacity: 0.65;
+  filter: blur(1px);
+  animation: sidebar-steam-rise 2.4s ease-in-out infinite;
+}
+
+.sidebar-steam-1 { inset-inline-start: 14px; }
+.sidebar-steam-2 { inset-inline-start: 26px; animation-delay: 0.8s; }
+
+@keyframes sidebar-steam-rise {
+  0%, 100% { transform: translateY(6px); opacity: 0; }
+  35% { opacity: 0.65; }
+  70% { transform: translateY(-3px); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-steam { animation: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Móvil: colapsado solo se ve el ícono de café; al abrir se vuelve un
+   panel superpuesto con backdrop (drawer)
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .sidebar-open {
+    width: min(248px, 84vw);
+  }
+
+  .sidebar-open .sidebar-cup-container {
+    transform: scale(0.72);
+  }
+
+  .sidebar-open .sidebar-brand {
+    justify-content: center;
+    padding-inline: 12px;
+  }
+
+  .sidebar-open .sidebar-brand-name {
+    opacity: 0;
+    max-width: 0;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Contenido de la app: reserva siempre el ancho colapsado (el sidebar
+   se superpone al expandirse, no empuja el contenido)
+   -------------------------------------------------------------------------- */
+
+.app-content {
+  min-height: 100vh;
+  margin-inline-start: var(--sidebar-collapsed-width);
+  padding: 64px clamp(28px, 7vw, 108px);
+  box-sizing: border-box;
+}
+
+@media (max-width: 640px) {
+  .app-content {
+    margin-inline-start: var(--sidebar-collapsed-width);
+    padding: 42px 22px;
+  }
+}
+
+.sidebar-link-badge {
+  position: absolute;
+  top: 4px;
+  inset-inline-end: 8px;
+  display: grid;
+  min-width: 17px;
+  height: 17px;
+  place-items: center;
+  padding: 0 3px;
+  border-radius: 9px;
+  background: #b94336;
+  color: white;
+  font-size: 10px;
+  font-weight: var(--font-semibold);
+  line-height: 1;
+}

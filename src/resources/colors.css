@@ -1,0 +1,110 @@
+:root {
+  /* ================================
+     COLORES PRINCIPALES
+     ================================ */
+
+  --color-primary: #84592B;        /* Toasted Caramel - Color principal */
+  --color-secondary: #9D9167;      /* Olive Harvest - Color secundario */
+  --color-accent: #743014;         /* Spiced Wine - Color de acento */
+
+  /* ================================
+     FONDOS
+     ================================ */
+
+  --color-background: #F7F2E6;     /* Fondo general */
+  --color-surface: #F5E8CC;        /* Fondo de tarjetas / módulos */
+  --color-sidebar: #442D1C;        /* Cowhide Cocoa - Paneles / menú */
+  --color-header: #F7F2E6;         /* Fondo general de barra superior */
+
+  /* ================================
+     TEXTOS
+     ================================ */
+
+  --color-text-primary: #2E2E2E;   /* Texto principal */
+  --color-text-secondary: #6B6B6B; /* Texto secundario */
+  --color-text-light: #FFFFFF;     /* Texto sobre fondos oscuros */
+
+  /* ================================
+     BORDES
+     ================================ */
+
+  --color-border: #D8C9B2;         /* Bordes */
+  --color-border-light: #E8D1A7;   /* Golden Batter */
+
+  /* ================================
+     ESTADOS
+     ================================ */
+
+  --color-success: #2E7D32;        /* Estado: Éxito */
+  --color-warning: #F4B400;        /* Estado: Advertencia */
+  --color-error: #D32F2F;          /* Estado: Error */
+  --color-info: #1976D2;           /* Estado: Información */
+
+  /* ================================
+     INTERACCIÓN
+     ================================ */
+
+  --color-hover: #E8D1A7;          /* Hover / Selección */
+  --color-selected: #E8D1A7;       /* Hover / Selección */
+  --color-focus: #84592B;          /* Enfoque */
+
+  /* ================================
+     VENTAS / DINERO
+     ================================ */
+
+  --color-price: #6B8E5A;          /* Precios / Valores */
+  --color-total: #442D1C;          /* Total / Cowhide Cocoa */
+  --color-discount: #A64B3C;       /* Descuentos / Promociones */
+
+  /* ================================
+     INVENTARIO
+     ================================ */
+
+  --color-stock-ok: #2E7D32;       /* Stock disponible */
+  --color-stock-low: #F6A623;      /* Stock bajo */
+  --color-stock-out: #C6C6C6;      /* Productos agotados */
+
+  /* ================================
+     BOTONES
+     ================================ */
+
+  --button-primary: #84592B;       /* Toasted Caramel */
+  --button-primary-hover: #743014; /* Spiced Wine */
+
+  --button-secondary: #9D9167;     /* Olive Harvest */
+  --button-secondary-hover: #E8D1A7; /* Golden Batter */
+
+  --button-danger: #D32F2F;        /* Error */
+  --button-success: #2E7D32;       /* Éxito */
+
+  /* ================================
+     TABLAS
+     ================================ */
+
+  --color-table-header: #E8D1A7;   /* Encabezados */
+  --color-table-row: #FAF7EF;      /* Filas normales */
+
+  /* ================================
+     GRÁFICOS
+     ================================ */
+
+  --color-chart: #9D9167;          /* Gráficos */
+
+  /* ================================
+     IMPRESIÓN / TICKETS
+     ================================ */
+
+  --color-print: #2E2E2E;          /* Texto y elementos de comprobantes */
+
+  /* ================================
+     CAMPOS DE ENTRADA
+     ================================ */
+
+  --color-input: #FFFFFF;          /* Inputs, selects, buscadores */
+
+  /* ================================
+     MODALES
+     ================================ */
+
+  --color-modal: rgba(46, 46, 46, 0.80); /* #2E2E2E / 80% */
+}

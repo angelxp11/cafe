@@ -1,0 +1,218 @@
+/* ===========================================
+   Pantalla de carga - Temática Cafetería
+   =========================================== */
+
+:root {
+  --coffee-dark: var(--color-sidebar);
+  --coffee-medium: var(--color-primary);
+  --coffee-light: var(--color-secondary);
+  --cream: var(--color-background);
+  --cream-light: var(--color-surface);
+  --accent: var(--color-accent);
+  --steam-color: color-mix(in srgb, var(--color-background) 70%, transparent);
+}
+
+.loading-screen {
+  position: fixed;
+
+  inset: 0;
+
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  background: linear-gradient(
+    160deg,
+    #3E2723 0%,
+    #6F4E37 100%
+  );
+
+  z-index: 9999;
+
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  overflow: hidden;
+}
+
+.loading-screen.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Contenedor de la taza */
+.cup-container {
+  position: relative;
+  width: 120px;
+  height: 130px;
+  margin-bottom: 30px;
+}
+
+.cup {
+  position: absolute;
+  bottom: 0;
+  left: 10px;
+  width: 90px;
+  height: 70px;
+  background: var(--cream-light);
+  border-radius: 0 0 40px 40px;
+  box-shadow: inset 0 -8px 15px rgba(0,0,0,0.15);
+  overflow: hidden;
+}
+
+.coffee-liquid {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 55%;
+  background: linear-gradient(180deg, var(--coffee-medium), var(--coffee-dark));
+  border-radius: 0 0 40px 40px;
+  animation: fillCup 2.5s ease-in-out infinite;
+}
+
+@keyframes fillCup {
+  0%, 100% { height: 30%; }
+  50% { height: 60%; }
+}
+
+.cup-handle {
+  position: absolute;
+  bottom: 15px;
+  right: -22px;
+  width: 30px;
+  height: 36px;
+  border: 8px solid var(--cream-light);
+  border-left: none;
+  border-radius: 0 20px 20px 0;
+}
+
+.cup-saucer {
+  position: absolute;
+  bottom: -10px;
+  left: -8px;
+  width: 116px;
+  height: 14px;
+  background: var(--cream-light);
+  border-radius: 50%;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+}
+
+/* Vapor animado */
+.steam {
+  position: absolute;
+  bottom: 75px;
+  width: 6px;
+  height: 30px;
+  background: var(--steam-color);
+  border-radius: 50%;
+  filter: blur(3px);
+  opacity: 0;
+  animation: steamRise 2.5s ease-in infinite;
+}
+
+.steam-1 { left: 35px; animation-delay: 0s; }
+.steam-2 { left: 55px; animation-delay: 0.5s; }
+.steam-3 { left: 75px; animation-delay: 1s; }
+
+@keyframes steamRise {
+  0% {
+    transform: translateY(0) scaleX(1);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateY(-60px) scaleX(1.8);
+    opacity: 0;
+  }
+}
+
+/* Texto de carga */
+.loading-text {
+  color: var(--cream);
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.loading-subtext {
+  color: var(--color-text-light);
+  font-size: 0.9rem;
+  font-weight: 400;
+  opacity: 0.85;
+  margin-bottom: 25px;
+}
+
+/* Puntos animados */
+.dots::after {
+  content: '';
+  animation: dots 1.4s steps(4, end) infinite;
+}
+
+@keyframes dots {
+  0%   { content: ''; }
+  25%  { content: '.'; }
+  50%  { content: '..'; }
+  75%  { content: '...'; }
+  100% { content: ''; }
+}
+
+/* Barra de progreso opcional */
+.progress-bar-container {
+  width: 200px;
+  height: 4px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--coffee-light), var(--accent));
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+/* Granos de café decorativos flotando */
+.bean {
+  position: absolute;
+  width: 14px;
+  height: 20px;
+  background: var(--coffee-dark);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  opacity: 0.15;
+  animation: floatBean linear infinite;
+}
+
+.bean::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  width: 2px;
+  height: 16px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 2px;
+}
+
+@keyframes floatBean {
+  0% { transform: translateY(110vh) rotate(0deg); }
+  100% { transform: translateY(-10vh) rotate(360deg); }
+}
+
+@media (max-width: 480px) {
+  .cup-container { width: 100px; height: 110px; }
+  .loading-text { font-size: 1.1rem; }
+  .loading-subtext { font-size: 0.8rem; }
+}

@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+:root {
+  /* ================================
+     TIPOGRAFÍA
+     ================================ */
+
+  --font-family: 'Poppins', sans-serif;
+
+  /* Pesos */
+  --font-light: 300;
+  --font-regular: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  /* Tamaños */
+  --font-size-xs: 0.75rem;     /* 12px */
+  --font-size-sm: 0.875rem;    /* 14px */
+  --font-size-md: 1rem;        /* 16px */
+  --font-size-lg: 1.125rem;    /* 18px */
+  --font-size-xl: 1.25rem;     /* 20px */
+  --font-size-2xl: 1.5rem;     /* 24px */
+  --font-size-3xl: 1.875rem;   /* 30px */
+  --font-size-4xl: 2.25rem;    /* 36px */
+}
+
+/* ================================
+   CONFIGURACIÓN GENERAL
+   ================================ */
+
+* {
+  font-family: var(--font-family);
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-regular);
+}
+
+/* ================================
+   TÍTULOS
+   ================================ */
+
+h1 {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-bold);
+}
+
+h2 {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-semibold);
+}
+
+h3 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-semibold);
+}
+
+/* ================================
+   TEXTO
+   ================================ */
+
+p {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-regular);
+}
+
+small {
+  font-size: var(--font-size-sm);
+}
+
+/* ================================
+   BOTONES
+   ================================ */
+
+button {
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-semibold);
+}
+
+/* ================================
+   INPUTS
+   ================================ */
+
+input,
+select,
+textarea {
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+}
+
+/* ================================
+   PRECIOS Y VALORES
+   ================================ */
+
+.price,
+.total,
+.amount {
+  font-weight: var(--font-bold);
+}
+
+/* ================================
+   TABLAS
+   ================================ */
+
+th {
+  font-weight: var(--font-semibold);
+}
+
+td {
+  font-weight: var(--font-regular);
+}

@@ -1,0 +1,355 @@
+.split-backdrop {
+	position: fixed;
+	z-index: 1400;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	padding: 20px;
+	background: rgb(45 33 27 / 56%);
+}
+
+.split-modal {
+	display: flex;
+	width: min(980px, 100%);
+	max-height: calc(100vh - 40px);
+	flex-direction: column;
+	overflow-y: auto;
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	background: var(--color-surface);
+	box-shadow: 0 24px 70px rgb(45 33 27 / 24%);
+}
+
+.split-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 22px 26px;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.split-header h2 {
+	margin: 0;
+}
+
+.split-close {
+	display: grid;
+	width: 38px;
+	height: 38px;
+	place-items: center;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--color-text-secondary);
+	cursor: pointer;
+}
+
+.split-close:hover:not(:disabled),
+.split-close:focus-visible:not(:disabled) {
+	background: var(--color-hover);
+	color: var(--color-primary);
+	outline: none;
+}
+
+.split-content {
+	display: grid;
+	gap: 16px;
+	padding: 26px;
+}
+
+.split-method {
+	margin: 0;
+	color: var(--color-text-secondary);
+}
+
+.split-items {
+	display: grid;
+	gap: 10px;
+}
+
+.split-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 14px;
+	border: 1px solid var(--color-border);
+	border-radius: 7px;
+	background: var(--color-background);
+}
+
+.split-item > div:first-child {
+	display: grid;
+	gap: 4px;
+}
+
+.split-item small {
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
+}
+
+.split-quantity {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.split-quantity button {
+	display: grid;
+	width: 30px;
+	height: 30px;
+	place-items: center;
+	border: 1px solid var(--color-border);
+	border-radius: 4px;
+	background: var(--color-surface);
+	color: var(--color-primary);
+	cursor: pointer;
+}
+
+.split-quantity button:hover:not(:disabled),
+.split-quantity button:focus-visible:not(:disabled) {
+	background: var(--color-selected);
+	outline: none;
+}
+
+.split-quantity button:disabled {
+	cursor: not-allowed;
+	opacity: 0.4;
+}
+
+.split-quantity span {
+	min-width: 20px;
+	color: var(--color-text-primary);
+	font-weight: var(--font-semibold);
+	text-align: center;
+}
+
+.split-total {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 16px;
+	padding-top: 16px;
+	border-top: 1px solid var(--color-border);
+}
+
+.split-total strong {
+	color: var(--color-total);
+	font-size: 1.35rem;
+}
+
+.split-payments-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding-top: 6px;
+}
+
+.split-payments-heading button {
+	padding: 6px 10px;
+	border: 1px solid var(--color-secondary);
+	border-radius: 5px;
+	background: var(--color-surface);
+	color: var(--color-primary);
+	cursor: pointer;
+	font: inherit;
+	font-size: var(--font-size-xs);
+	font-weight: var(--font-semibold);
+}
+
+.split-payments-heading button:hover:not(:disabled),
+.split-payments-heading button:focus-visible:not(:disabled) {
+	background: var(--color-selected);
+	outline: none;
+}
+
+.split-payments-heading button:disabled {
+	cursor: not-allowed;
+	opacity: 0.45;
+}
+
+.split-payments {
+	display: grid;
+	gap: 8px;
+}
+
+.split-payment-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 32px;
+	gap: 8px;
+}
+
+.split-payment-fields {
+	display: grid;
+	gap: 8px;
+}
+
+.split-payment-row select,
+.split-payment-row input {
+	min-height: 40px;
+	padding: 0 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 5px;
+	background: var(--color-background);
+	color: var(--color-text-primary);
+	font: inherit;
+}
+
+.split-denomination-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+	gap: 9px;
+	padding: 2px;
+}
+
+.split-denomination {
+	display: grid;
+	justify-items: center;
+	gap: 6px;
+	padding: 8px;
+	border: 1px solid var(--color-border);
+	border-radius: 5px;
+	background: var(--color-background);
+	color: var(--color-text-primary);
+	cursor: pointer;
+	font: inherit;
+	font-size: var(--font-size-xs);
+}
+
+.split-denomination:hover,
+.split-denomination:focus-visible {
+	border-color: var(--color-secondary);
+	background: var(--color-selected);
+	outline: none;
+}
+
+.split-denomination img {
+	width: 100%;
+	height: 46px;
+	object-fit: contain;
+}
+
+.split-cash-total {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-sm);
+}
+
+.split-cash-total strong {
+	color: var(--color-text-primary);
+	font-size: 1rem;
+}
+
+.split-cash-total button {
+	padding: 5px 10px;
+	border: 1px solid var(--color-error);
+	border-radius: 4px;
+	background: var(--color-surface);
+	color: var(--color-error);
+	cursor: pointer;
+	font: inherit;
+	font-size: var(--font-size-xs);
+	font-weight: var(--font-semibold);
+}
+
+.split-cash-total button:disabled {
+	cursor: not-allowed;
+	opacity: 0.45;
+}
+
+.split-payment-row > button {
+	display: grid;
+	width: 32px;
+	height: 40px;
+	place-items: center;
+	border: 1px solid var(--color-error);
+	border-radius: 5px;
+	background: var(--color-surface);
+	color: var(--color-error);
+	cursor: pointer;
+}
+
+.split-payment-row > button:hover,
+.split-payment-row > button:focus-visible {
+	background: var(--color-error);
+	color: var(--color-text-light);
+	outline: none;
+}
+
+.split-payment-status {
+	color: var(--color-error);
+	font-size: var(--font-size-sm);
+	font-weight: var(--font-semibold);
+}
+
+.split-payment-complete {
+	color: var(--color-success);
+}
+
+.split-confirm {
+	min-height: 46px;
+	border: 0;
+	border-radius: 5px;
+	background: var(--button-success);
+	color: var(--color-text-light);
+	cursor: pointer;
+	font: inherit;
+	font-weight: var(--font-semibold);
+}
+
+.split-confirm:hover:not(:disabled),
+.split-confirm:focus-visible:not(:disabled) {
+	background: #256b2a;
+	outline: none;
+}
+
+.split-confirm:disabled {
+	cursor: not-allowed;
+	opacity: 0.55;
+}
+
+@media (max-width: 560px) {
+	.split-backdrop {
+		align-items: end;
+		padding: 0;
+	}
+
+	.split-modal {
+		width: 100%;
+		max-height: calc(100vh - 10px);
+		border-right: 0;
+		border-bottom: 0;
+		border-left: 0;
+		border-radius: 14px 14px 0 0;
+	}
+
+	.split-header,
+	.split-content {
+		padding: 18px;
+	}
+
+	.split-item {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+
+	.split-quantity {
+		align-self: end;
+	}
+
+	.split-denomination-grid {
+		grid-template-columns: repeat(3, 1fr);
+	}
+
+	.split-denomination {
+		padding: 6px;
+	}
+
+	.split-denomination img {
+		height: 34px;
+	}
+}

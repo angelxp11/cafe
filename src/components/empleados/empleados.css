@@ -1,0 +1,94 @@
+.employees-page {
+	width: 100%;
+}
+
+.employees-table-wrapper {
+	margin-top: 36px;
+	overflow-x: auto;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-surface);
+}
+
+.employees-table {
+	width: 100%;
+	min-width: 700px;
+	border-collapse: collapse;
+	color: var(--color-text-primary);
+	font-size: var(--font-size-sm);
+}
+
+.employees-table th,
+.employees-table td {
+	padding: 16px;
+	border-bottom: 1px solid var(--color-border-light);
+	text-align: left;
+}
+
+.employees-table th {
+	background: var(--color-background);
+	color: var(--color-text-secondary);
+	font-weight: var(--font-semibold);
+}
+
+.employees-table tbody tr:last-child td {
+	border-bottom: 0;
+}
+
+.employee-status {
+	display: inline-flex;
+	padding: 5px 9px;
+	border-radius: 999px;
+	font-size: var(--font-size-xs);
+	font-weight: var(--font-semibold);
+}
+
+.employee-status-active {
+	background: #e4f2e5;
+	color: var(--color-success);
+}
+
+.employee-status-inactive {
+	background: #fbe5e5;
+	color: var(--color-error);
+}
+
+.employee-status-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	padding: 8px 10px;
+	border: 0;
+	border-radius: 5px;
+	background: var(--color-hover);
+	color: var(--color-primary);
+	cursor: pointer;
+	font: inherit;
+	font-weight: var(--font-semibold);
+}
+
+.employee-status-button:hover,
+.employee-status-button:focus-visible {
+	background: var(--color-selected);
+	outline: none;
+}
+
+.employees-state {
+	margin-top: 36px;
+	color: var(--color-text-secondary);
+}
+
+.employees-access-denied {
+	max-width: 620px;
+	padding-top: 18vh;
+}
+
+.employees-access-denied h1 {
+	margin: 0;
+	color: var(--color-text-primary);
+	font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+.employees-access-denied p:last-child {
+	color: var(--color-text-secondary);
+}

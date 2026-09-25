@@ -1,0 +1,440 @@
+.cashier-backdrop {
+	position: fixed;
+	z-index: 1300;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	padding: 20px;
+	background: rgb(45 33 27 / 58%);
+}
+
+.cashier-modal {
+	display: flex;
+	width: min(980px, 100%);
+	max-height: calc(100vh - 40px);
+	flex-direction: column;
+	border: 1px solid var(--color-border);
+	border-radius: 10px;
+	background: var(--color-surface);
+	box-shadow: 0 24px 70px rgb(45 33 27 / 24%);
+	overflow-y: auto;
+}
+
+.cashier-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 22px 26px;
+	border-bottom: 1px solid var(--color-border);
+}
+
+.cashier-header h2,
+.cashier-content h3 {
+	margin: 0;
+}
+
+.cashier-payment-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.cashier-split-button {
+	padding: 7px 15px;
+	border: 1px solid var(--color-secondary);
+	border-radius: 5px;
+	background: var(--color-surface);
+	color: var(--color-primary);
+	cursor: pointer;
+	font: inherit;
+	font-size: var(--font-size-sm);
+	font-weight: var(--font-semibold);
+}
+
+.cashier-split-button:hover:not(:disabled),
+.cashier-split-button:focus-visible:not(:disabled) {
+	background: var(--color-selected);
+	outline: none;
+}
+
+.cashier-split-button:disabled {
+	cursor: not-allowed;
+	opacity: 0.5;
+}
+
+.cashier-close {
+	display: grid;
+	width: 38px;
+	height: 38px;
+	place-items: center;
+	border: 0;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--color-text-secondary);
+	cursor: pointer;
+	font-size: 1rem;
+}
+
+.cashier-close:hover,
+.cashier-close:focus-visible {
+	background: var(--color-hover);
+	color: var(--color-primary);
+	outline: none;
+}
+
+.cashier-content {
+	display: grid;
+	gap: 18px;
+	padding: 26px;
+}
+
+.cashier-table {
+	margin: 0;
+	color: var(--color-text-secondary);
+}
+
+.cashier-total {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 18px;
+	border: 1px solid var(--color-border);
+	border-radius: 7px;
+	background: var(--color-background);
+}
+
+.cashier-total strong {
+	color: var(--color-total);
+	font-size: 1.6rem;
+}
+
+.cashier-tabs {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 6px;
+	padding: 6px;
+	border: 1px solid var(--color-border);
+	border-radius: 9px 9px 0 0;
+	background: var(--color-background);
+	box-shadow: inset 0 -1px 0 var(--color-border);
+}
+
+
+.cashier-tab {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 9px;
+	min-height: 48px;
+	border: 0;
+	border-radius: 6px 6px 3px 3px;
+	background: transparent;
+	color: var(--color-text-secondary);
+	cursor: pointer;
+	font: inherit;
+	font-weight: var(--font-semibold);
+}
+
+.cashier-tab:hover,
+.cashier-tab:focus-visible,
+.cashier-tab-active {
+	border-color: var(--color-secondary);
+	background: var(--color-surface);
+	color: var(--color-primary);
+	box-shadow: 0 2px 5px rgb(45 33 27 / 10%);
+	outline: none;
+}
+
+.cashier-tab-panel {
+	min-height: 112px;
+	padding: 16px;
+	border: 1px solid var(--color-border);
+	border-top: 0;
+	border-radius: 0 0 9px 9px;
+	background: var(--color-surface);
+}
+
+.cashier-panel-label {
+	margin: 0 0 12px;
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
+	text-transform: uppercase;
+}
+
+.cashier-method-list {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+	gap: 10px;
+}
+
+.cash-denomination-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+	gap: 9px;
+	padding-right: 4px;
+}
+
+.cash-denomination {
+	display: grid;
+	justify-items: center;
+	gap: 6px;
+	padding: 8px;
+	border: 1px solid var(--color-border);
+	border-radius: 7px;
+	background: var(--color-background);
+	color: var(--color-text-primary);
+	cursor: pointer;
+	font: inherit;
+}
+
+.cash-denomination:hover,
+.cash-denomination:focus-visible {
+	border-color: var(--color-secondary);
+	background: var(--color-selected);
+	outline: none;
+	transform: translateY(-1px);
+}
+
+.cash-denomination img {
+	width: 100%;
+	height: 46px;
+	object-fit: contain;
+}
+
+.cash-denomination strong {
+	font-size: var(--font-size-xs);
+}
+
+.cash-selection-summary {
+	display: grid;
+	gap: 10px;
+	margin-top: 16px;
+	padding-top: 14px;
+	border-top: 1px solid var(--color-border);
+}
+
+.cash-selection-heading,
+.cash-amounts {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.cash-clear-button {
+	padding: 7px 14px;
+	border: 1px solid var(--color-error);
+	border-radius: 5px;
+	background: var(--color-surface);
+	color: var(--color-error);
+	cursor: pointer;
+	font: inherit;
+	font-size: var(--font-size-xs);
+	font-weight: var(--font-semibold);
+}
+
+.cash-clear-button:hover:not(:disabled),
+.cash-clear-button:focus-visible:not(:disabled) {
+	background: var(--color-error);
+	color: var(--color-text-light);
+	outline: none;
+}
+
+.cash-clear-button:disabled {
+	cursor: not-allowed;
+	opacity: 0.45;
+}
+
+.cash-amounts {
+	padding-top: 9px;
+	border-top: 1px solid var(--color-border-light);
+	color: var(--color-text-secondary);
+	font-size: 1rem;
+}
+
+.cash-amounts strong {
+	display: inline-block;
+	margin-left: 4px;
+	color: var(--color-text-primary);
+	font-size: 1.25rem;
+}
+
+.cash-amount-missing {
+	color: var(--color-error);
+}
+
+.cash-amount-change {
+	color: var(--color-success);
+}
+
+.cashier-method {
+	display: grid;
+	gap: 5px;
+	min-height: 66px;
+	padding: 12px 14px;
+	border: 1px solid var(--color-border);
+	border-radius: 7px;
+	background: var(--color-background);
+	color: var(--color-text-primary);
+	cursor: pointer;
+	font: inherit;
+	font-weight: var(--font-semibold);
+	text-align: left;
+}
+
+.cashier-method:hover,
+.cashier-method:focus-visible,
+.cashier-method-active {
+	border-color: var(--color-secondary);
+	background: var(--color-selected);
+	color: var(--color-primary);
+	outline: none;
+}
+
+.cashier-method small {
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
+	font-weight: var(--font-regular);
+}
+
+.cashier-empty {
+	margin: 0;
+	color: var(--color-error);
+}
+
+.cashier-pay-button {
+	min-height: 46px;
+	border: 0;
+	border-radius: 5px;
+	background: var(--button-success);
+	color: var(--color-text-light);
+	cursor: pointer;
+	font: inherit;
+	font-weight: var(--font-semibold);
+}
+
+.cashier-additional-toggle {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	color: var(--color-text-primary);
+	cursor: pointer;
+	font-size: var(--font-size-sm);
+	font-weight: var(--font-semibold);
+}
+
+.cashier-additional-toggle input {
+	width: 17px;
+	height: 17px;
+	accent-color: var(--color-success);
+}
+
+.cashier-additional-payment {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 12px;
+	padding: 16px;
+	border: 1px solid var(--color-border);
+	border-radius: 7px;
+	background: var(--color-background);
+}
+
+.cashier-additional-payment label {
+	    display: grid;
+    gap: 6px;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-semibold);
+    align-content: start;
+    justify-content: stretch;
+}
+
+.cashier-additional-payment select,
+.cashier-additional-payment input {
+	min-height: 40px;
+	padding: 0 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 5px;
+	background: var(--color-surface);
+	color: var(--color-text-primary);
+	font: inherit;
+}
+
+.cashier-additional-payment p {
+	grid-column: 1 / -1;
+	margin: 0;
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-sm);
+}
+
+.cashier-additional-payment p strong {
+	color: var(--color-total);
+}
+
+.cashier-pay-button:hover:not(:disabled),
+.cashier-pay-button:focus-visible:not(:disabled) {
+	background: #256b2a;
+	outline: none;
+}
+
+.cashier-pay-button:disabled {
+	cursor: not-allowed;
+	opacity: 0.55;
+}
+
+@media (max-width: 560px) {
+	.cashier-backdrop {
+		align-items: end;
+		padding: 0;
+	}
+
+	.cashier-modal {
+		width: 100%;
+		max-height: calc(100vh - 10px);
+		border-right: 0;
+		border-bottom: 0;
+		border-left: 0;
+		border-radius: 14px 14px 0 0;
+	}
+
+	.cashier-header,
+	.cashier-content {
+		padding: 18px;
+	}
+
+	.cashier-total strong {
+		font-size: 1.35rem;
+	}
+
+	.cashier-method-list {
+		grid-template-columns: 1fr;
+	}
+
+	.cash-denomination-grid {
+		grid-template-columns: repeat(3, 1fr);
+	}
+
+	.cash-denomination {
+		padding: 6px;
+	}
+
+	.cash-denomination img {
+		height: 34px;
+	}
+
+	.cash-amounts {
+		align-items: flex-start;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.cashier-additional-payment {
+		grid-template-columns: 1fr;
+	}
+
+	.cashier-additional-payment p {
+		grid-column: auto;
+	}
+}

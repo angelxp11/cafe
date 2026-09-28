@@ -1,0 +1,398 @@
+/* ===========================================
+   Pantalla de servicio vencido - Temática Cafetería
+   =========================================== */
+
+:root {
+  --exp-dark: var(--color-sidebar, #3E2723);
+  --exp-medium: var(--color-primary, #6F4E37);
+  --exp-light: var(--color-secondary, #A67B5B);
+  --exp-cream: var(--color-background, #F5EBDD);
+  --exp-cream-light: var(--color-surface, #FFF8EE);
+  --exp-accent: var(--color-accent, #E0A458);
+  --exp-alert: #E8674A;
+}
+
+.expired-screen {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background: linear-gradient(160deg, #3E2723 0%, #6F4E37 100%);
+  z-index: 9999;
+  overflow: hidden;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+.expired-screen.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ---------- Taza vacía ---------- */
+.expired-cup-container {
+  position: relative;
+  width: 120px;
+  height: 140px;
+  margin-bottom: 28px;
+  animation: expiredSway 4s ease-in-out infinite;
+}
+
+@keyframes expiredSway {
+  0%, 100% { transform: rotate(-2deg); }
+  50%      { transform: rotate(2deg); }
+}
+
+.expired-cup {
+  position: absolute;
+  bottom: 0;
+  left: 10px;
+  width: 90px;
+  height: 70px;
+  background: var(--exp-cream-light);
+  border-radius: 0 0 40px 40px;
+  box-shadow: inset 0 -8px 15px rgba(0,0,0,0.15);
+  overflow: hidden;
+}
+
+/* El café se vacía y se queda casi seco */
+.expired-liquid {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 8%;
+  background: linear-gradient(180deg, var(--exp-medium), var(--exp-dark));
+  border-radius: 0 0 40px 40px;
+  animation: expiredDrain 4s ease-in-out infinite;
+}
+
+@keyframes expiredDrain {
+  0%   { height: 60%; opacity: 1; }
+  60%  { height: 8%;  opacity: 1; }
+  85%  { height: 8%;  opacity: 0.6; }
+  100% { height: 60%; opacity: 0; }
+}
+
+.expired-handle {
+  position: absolute;
+  bottom: 15px;
+  right: -22px;
+  width: 30px;
+  height: 36px;
+  border: 8px solid var(--exp-cream-light);
+  border-left: none;
+  border-radius: 0 20px 20px 0;
+}
+
+.expired-saucer {
+  position: absolute;
+  bottom: -10px;
+  left: -8px;
+  width: 116px;
+  height: 14px;
+  background: var(--exp-cream-light);
+  border-radius: 50%;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+}
+
+/* Vapor que se apaga */
+.expired-steam {
+  position: absolute;
+  bottom: 75px;
+  width: 6px;
+  height: 30px;
+  background: color-mix(in srgb, var(--exp-cream) 60%, transparent);
+  border-radius: 50%;
+  filter: blur(3px);
+  opacity: 0;
+  animation: expiredSteam 4s ease-in infinite;
+}
+.expired-steam-1 { left: 35px; animation-delay: 0s; }
+.expired-steam-2 { left: 55px; animation-delay: 0.4s; }
+.expired-steam-3 { left: 75px; animation-delay: 0.8s; }
+
+@keyframes expiredSteam {
+  0%   { transform: translateY(0) scaleX(1); opacity: 0; }
+  15%  { opacity: 0.6; }
+  40%  { transform: translateY(-40px) scaleX(1.6); opacity: 0; }
+  100% { opacity: 0; }
+}
+
+/* Zzz flotando */
+.expired-zzz {
+  position: absolute;
+  top: 0;
+  right: -14px;
+  color: var(--exp-cream);
+  font-weight: 700;
+  opacity: 0;
+  animation: expiredZzz 3s ease-in-out infinite;
+}
+.expired-zzz:nth-of-type(1) { font-size: 0.9rem; animation-delay: 0s; }
+.expired-zzz:nth-of-type(2) { font-size: 1.15rem; animation-delay: 1s; }
+.expired-zzz:nth-of-type(3) { font-size: 1.4rem; animation-delay: 2s; }
+
+@keyframes expiredZzz {
+  0%   { transform: translate(0, 30px); opacity: 0; }
+  30%  { opacity: 0.9; }
+  100% { transform: translate(18px, -20px); opacity: 0; }
+}
+
+/* Insignia de alerta */
+.expired-badge {
+  position: absolute;
+  top: -6px;
+  left: -10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--exp-alert);
+  color: #fff;
+  font-weight: 800;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: expiredPulse 1.6s ease-out infinite;
+}
+
+@keyframes expiredPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(232,103,74,0.7); transform: scale(1); }
+  50%  { transform: scale(1.08); }
+  100% { box-shadow: 0 0 0 16px rgba(232,103,74,0); transform: scale(1); }
+}
+
+/* ---------- Tarjeta de mensaje ---------- */
+.expired-card {
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 16px;
+  padding: 24px 22px;
+  backdrop-filter: blur(6px);
+  animation: expiredFadeUp 0.8s ease both;
+}
+
+@keyframes expiredFadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.expired-title {
+  color: var(--exp-cream);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin: 0 0 10px;
+}
+
+.expired-message {
+  color: var(--exp-cream);
+  font-size: 0.98rem;
+  line-height: 1.5;
+  opacity: 0.9;
+  margin: 0 0 20px;
+}
+
+.expired-message strong { color: #ffffff; }
+
+.expired-btn {
+  display: inline-block;
+  padding: 12px 26px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--exp-light), var(--exp-accent));
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: expiredBtnGlow 2.4s ease-in-out infinite;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.expired-btn:hover {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+}
+
+@keyframes expiredBtnGlow {
+  0%, 100% { filter: brightness(1); }
+  50%      { filter: brightness(1.15); }
+}
+
+/* ---------- Granos flotando ---------- */
+.expired-bean {
+  position: absolute;
+  width: 14px;
+  height: 20px;
+  background: var(--exp-dark);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  opacity: 0.15;
+  animation: expiredBean linear infinite;
+}
+.expired-bean::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  width: 2px;
+  height: 16px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 2px;
+}
+
+@keyframes expiredBean {
+  0%   { transform: translateY(110vh) rotate(0deg); }
+  100% { transform: translateY(-10vh) rotate(360deg); }
+}
+
+@media (max-width: 480px) {
+  .expired-cup-container { transform-origin: center; width: 100px; height: 120px; }
+  .expired-title { font-size: 1.25rem; }
+  .expired-message { font-size: 0.9rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expired-screen *, .expired-screen { animation: none !important; }
+}
+
+.expired-payment-options {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: rgba(0,0,0,0.68);
+  backdrop-filter: blur(4px);
+  color: var(--exp-cream);
+}
+
+.expired-payment-dialog {
+  width: min(100%, 420px);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 22px;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 12px;
+  background: #3E2723;
+  box-shadow: 0 18px 56px rgba(0,0,0,0.45);
+  text-align: left;
+}
+
+.expired-payment-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.expired-payment-heading h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.expired-payment-close,
+.expired-payment-switch button,
+.expired-copy-button {
+  min-height: 42px;
+  padding: 9px 14px;
+  border: 1px solid rgba(255,255,255,0.28);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.08);
+  color: var(--exp-cream);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.expired-payment-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.expired-payment-switch button[aria-pressed="true"] {
+  border-color: var(--exp-accent);
+  background: var(--exp-accent);
+  color: var(--exp-cream-light);
+}
+
+.expired-payment-panel {
+  text-align: center;
+}
+
+.expired-payment-panel p {
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+
+.expired-payment-amount {
+  display: block;
+  margin: 0 0 12px;
+  color: var(--exp-cream-light);
+  font-size: 1.25rem;
+}
+
+.expired-payment-qr {
+  display: block;
+  width: min(100%, 240px);
+  height: auto;
+  margin: 0 auto;
+  border: 8px solid #fff;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.expired-payment-key {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.expired-payment-key span {
+  font-size: 0.82rem;
+  opacity: 0.8;
+}
+
+.expired-copy-button {
+  width: 100%;
+  background: var(--exp-accent);
+  color: var(--exp-cream-light);
+}
+
+.expired-copy-status {
+  min-height: 1.4em;
+  margin-top: 10px !important;
+  color: var(--exp-cream-light);
+  font-weight: 700;
+}
+
+.expired-payment-options[hidden],
+.expired-payment-panel[hidden],
+.expired-contact-trigger[hidden] {
+  display: none !important;
+}

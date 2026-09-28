@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { FaUserCheck, FaUserSlash } from 'react-icons/fa';
 import { db } from '../../server/api';
 import toast from '../../resources/toast/toast';
@@ -18,19 +18,19 @@ function Empleados({ profile }) {
 		}
 
 		let cancelled = false;
-		async function loadUsers() {
-			try {
-				const snapshot = await getDocs(collection(db, 'usuarios'));
-				if (!cancelled) setUsers(snapshot.docs.map((userDoc) => ({ id: userDoc.id, ...userDoc.data() })));
-			} catch (error) {
-				if (!cancelled) toast.error('No se pudieron cargar los usuarios.');
-			} finally {
-				if (!cancelled) setLoading(false);
-			}
-		}
-
-		loadUsers();
-		return () => { cancelled = true; };
+		const unsubscribe = onSnapshot(collection(db, 'usuarios'), (snapshot) => {
+			if (cancelled) return;
+			setUsers(snapshot.docs.map((userDoc) => ({ id: userDoc.id, ...userDoc.data() })));
+			setLoading(false);
+		}, () => {
+			if (cancelled) return;
+			toast.error('No se pudieron cargar los usuarios.');
+			setLoading(false);
+		});
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
 	}, [profile?.rol]);
 
 	async function toggleUserStatus(user) {
@@ -43,6 +43,19 @@ function Empleados({ profile }) {
 			toast.success(`Usuario ${nextStatus ? 'activado' : 'desactivado'}.`);
 		} catch (error) {
 			toast.error('No se pudo cambiar el estado del usuario.');
+		} finally {
+			setLoading(false);
+		}
+	}
+
+	async function changeUserRole(user, role) {
+		setLoadingMessage('Actualizando rol');
+		setLoading(true);
+		try {
+			await updateDoc(doc(db, 'usuarios', user.id), { rol: role });
+			toast.success('Rol actualizado.');
+		} catch (error) {
+			toast.error('No se pudo cambiar el rol del usuario.');
 		} finally {
 			setLoading(false);
 		}
@@ -74,7 +87,19 @@ function Empleados({ profile }) {
 							{users.map((user) => {
 								const isActive = user.activo !== false;
 								return <tr key={user.id}>
-									<td>{user.nombre} {user.apellido}</td><td>{user.correo}</td><td>{user.rol}</td>
+									<td>{user.nombre} {user.apellido}</td><td>{user.correo}</td>
+									<td>
+										<select
+											className="employee-role-select"
+											aria-label={`Rol de ${user.nombre} ${user.apellido}`}
+											value={user.rol}
+											disabled={user.id === profile.correo}
+											onChange={(event) => changeUserRole(user, event.target.value)}
+										>
+											<option value="empleado">Empleado</option>
+											<option value="admin">Administrador</option>
+										</select>
+									</td>
 									<td><span className={`employee-status ${isActive ? 'employee-status-active' : 'employee-status-inactive'}`}>{isActive ? 'Activo' : 'Desactivado'}</span></td>
 									<td><button className="employee-status-button" type="button" onClick={() => toggleUserStatus(user)}>{isActive ? <FaUserSlash /> : <FaUserCheck />}<span>{isActive ? 'Desactivar' : 'Activar'}</span></button></td>
 								</tr>;

@@ -9,6 +9,7 @@ import LoadingScreen from './resources/loading/LoadingScreen';
 import Desactivado from './resources/desactivado';
 import Homepage from './components/homepage/homepage';
 import Inventario from './components/inventario/inventario';
+import Abastecer from './components/inventario/abastecer/abastecer';
 import Empleados from './components/empleados/empleados';
 import Turno from './components/turno/turno';
 import Mesas from './components/mesas/mesas';
@@ -62,7 +63,11 @@ function App() {
 	}, []);
 
 	function renderSection() {
+		if (['Inventario', 'Empleados', 'Métodos de pago'].includes(activeSection) && userProfile?.rol !== 'admin') {
+			return <Homepage profile={userProfile} />;
+		}
 		if (activeSection === 'Inventario') return <Inventario profile={userProfile} />;
+		if (activeSection === 'Abastecimiento') return <Abastecer profile={userProfile} />;
 		if (activeSection === 'Empleados') return <Empleados profile={userProfile} />;
 		if (activeSection === 'Turno') return <Turno profile={userProfile} />;
 		if (activeSection === 'Mesas') return <Mesas profile={userProfile} />;

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { collection, doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { FaArrowLeft, FaCreditCard, FaFileInvoiceDollar } from 'react-icons/fa';
 import { auth, db } from '../../../../server/api';
+import { shiftBalance } from '../../../../server/paymentMethods';
 import toast from '../../../../resources/toast/toast';
 import Caja from '../../cuenta/caja/caja';
 import '../clientes.css';
@@ -83,8 +84,8 @@ function CuentaDelCliente({ customer, accounts, profile, onBack, onEdit }) {
 			const remainingBalance = Math.max(0, Number(accountData.saldoPendiente) - amount);
 
 			for (const [methodId, allocatedAmount] of Object.entries(balanceByMethod)) {
-				const currentBalance = Number(methodSnapshots.get(methodId).data().saldo || 0);
-				transaction.update(doc(db, 'metodosPago', methodId), { saldo: currentBalance + allocatedAmount });
+				const currentBalance = shiftBalance(methodSnapshots.get(methodId).data());
+				transaction.update(doc(db, 'metodosPago', methodId), { saldoTurno: currentBalance + allocatedAmount });
 			}
 			transaction.update(accountReference, {
 				saldoPendiente: remainingBalance,

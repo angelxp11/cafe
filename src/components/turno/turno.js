@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, doc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, where } from 'firebase/firestore';
 import { FaArrowDown, FaArrowUp, FaClock, FaPlay, FaPrint, FaStop } from 'react-icons/fa';
 import { auth, db } from '../../server/api';
+import { globalBalance, methodBalanceUpdate, shiftBalance } from '../../server/paymentMethods';
 import LoadingScreen from '../../resources/loading/LoadingScreen';
 import toast from '../../resources/toast/toast';
 import './turno.css';
@@ -64,6 +65,13 @@ function escapeHtml(value) {
 	return String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
 }
 
+function denominationTable(entries) {
+	if (!entries?.length) return '<p class="count-empty">Sin detalle de billetes</p>';
+	const rows = entries.map(({ valor, cantidad }) => `<span style="display:inline-flex;flex-direction:column;min-width:92px;padding:7px 9px;border:1px solid #dfe6e1;background:#fff"><strong style="font-size:13px;color:#24312d">${formatMoney(valor)}</strong><small style="margin-top:3px;color:#63736b">${cantidad} ${Number(cantidad) === 1 ? 'billete' : 'billetes'} · ${formatMoney(Number(valor) * Number(cantidad))}</small></span>`).join('');
+	const total = entries.reduce((sum, entry) => sum + Number(entry.valor || 0) * Number(entry.cantidad || 0), 0);
+	return `<span style="display:flex;flex-wrap:wrap;gap:7px;margin-top:8px">${rows}<strong style="display:block;width:100%;margin-top:3px;color:#24312d">Total efectivo: ${formatMoney(total)}</strong></span>`;
+}
+
 function reportHtml(shift, invoices, movements, inventory) {
 	const methodTotals = new Map();
 	const soldItems = new Map();
@@ -100,8 +108,8 @@ function reportHtml(shift, invoices, movements, inventory) {
 	}).join('');
 	const expenseRows = [...expenseTotals.values()].map((expense) => `<tr><td>${escapeHtml(expense.nombre)}</td><td>${expense.registros}</td><td>${formatMoney(expense.monto)}</td></tr>`).join('');
 	const invoiceRows = invoices.map((invoice) => `<tr><td>${escapeHtml(String(invoice.folio || invoice.id).slice(0, 8).toUpperCase())}</td><td>${escapeHtml(invoice.mesaNombre || 'Mesa')}</td><td>${escapeHtml(invoice.metodoPago || 'Múltiples métodos')}</td><td>${formatMoney(invoice.monto)}</td></tr>`).join('');
-	const openingDenominations = (shift.apertura?.denominaciones || []).map((bill) => `<span>${bill.cantidad} × ${formatMoney(bill.valor)}</span>`).join(' · ') || 'Sin detalle';
-	const closingDenominations = (shift.cierre?.denominaciones || []).map((bill) => `<span>${bill.cantidad} × ${formatMoney(bill.valor)}</span>`).join(' · ') || 'Sin detalle';
+	const openingDenominations = denominationTable(shift.apertura?.denominaciones || []);
+	const closingDenominations = denominationTable(shift.cierre?.denominaciones || []);
 	const startedAt = formatDate(shift.inicioEn);
 	const closedAt = formatDate(shift.cierre?.cerradoEn);
 	return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cierre de turno</title><style>
@@ -219,7 +227,12 @@ function Turno({ profile }) {
 				for (const method of methods) methodSnapshots.set(method.id, await transaction.get(doc(db, 'metodosPago', method.id)));
 				for (const method of methods) {
 					const methodSnapshot = methodSnapshots.get(method.id);
-					if (methodSnapshot.exists()) transaction.update(doc(db, 'metodosPago', method.id), { saldo: method.id === cashMethod.id ? openingTotal : 0 });
+					if (methodSnapshot.exists()) {
+						const current = methodSnapshot.data();
+						const openingBalance = method.id === cashMethod.id ? openingTotal : 0;
+						if (globalBalance(current) < openingBalance) throw new Error(`El saldo global de ${method.nombre} no alcanza para abrir el turno.`);
+						transaction.update(doc(db, 'metodosPago', method.id), methodBalanceUpdate(current, globalBalance(current) - openingBalance, openingBalance));
+					}
 				}
 				transaction.set(shiftReference, {
 					estado: 'abierto',
@@ -235,6 +248,8 @@ function Turno({ profile }) {
 					metodoId: cashMethod.id,
 					metodoNombre: cashMethod.nombre,
 					monto: openingTotal,
+					origen: 'global',
+					destino: 'turno',
 					denominaciones: countEntries(openingCounts),
 					descripcion: 'Apertura de caja',
 					creadoPor: employeeName,
@@ -269,9 +284,9 @@ function Turno({ profile }) {
 				const methodSnapshot = await transaction.get(methodReference);
 				if (!pointerSnapshot.exists() || !pointerSnapshot.data().abierto || pointerSnapshot.data().turnoId !== activeShiftId) throw new Error('El turno ya no está abierto.');
 				if (!methodSnapshot.exists()) throw new Error('El método de pago ya no está disponible.');
-				const currentBalance = Number(methodSnapshot.data().saldo || 0);
+				const currentBalance = shiftBalance(methodSnapshot.data());
 				if (movementType === 'egreso' && currentBalance < amount) throw new Error('El egreso supera el saldo actual de este método.');
-				transaction.update(methodReference, { saldo: currentBalance + (movementType === 'ingreso' ? amount : -amount) });
+				transaction.update(methodReference, { saldoTurno: currentBalance + (movementType === 'ingreso' ? amount : -amount) });
 				transaction.set(movementReference, {
 					turnoId: activeShiftId,
 					tipo: movementType,
@@ -314,29 +329,43 @@ function Turno({ profile }) {
 				const pointerSnapshot = await transaction.get(pointerReference);
 				const shiftSnapshot = await transaction.get(shiftReference);
 				if (!pointerSnapshot.exists() || !pointerSnapshot.data().abierto || pointerSnapshot.data().turnoId !== activeShiftId || !shiftSnapshot.exists()) throw new Error('El turno ya no está abierto.');
+				const methodSnapshots = new Map();
+				for (const method of methods) methodSnapshots.set(method.id, await transaction.get(doc(db, 'metodosPago', method.id)));
+				const closingMethods = [];
+				methods.forEach((method) => {
+					const methodSnapshot = methodSnapshots.get(method.id);
+					if (!methodSnapshot.exists()) return;
+					const current = methodSnapshot.data();
+					const amountToGlobal = method.id === cashMethod.id ? closingTotal : shiftBalance(current);
+					transaction.update(doc(db, 'metodosPago', method.id), methodBalanceUpdate(current, globalBalance(current) + amountToGlobal, 0));
+					closingMethods.push({ metodoId: method.id, metodoNombre: method.nombre, monto: amountToGlobal });
+				});
+				transaction.set(closingMovementReference, {
+					turnoId: activeShiftId,
+					tipo: 'cierre',
+					direccion: 'traslado_global',
+					origen: 'turno',
+					destino: 'global',
+					metodoId: cashMethod.id,
+					metodoNombre: 'Todos los métodos',
+					monto: closingMethods.reduce((total, method) => total + method.monto, 0),
+					metodos: closingMethods,
+					saldoEsperado: expectedCash,
+					diferencia: cashDifference,
+					efectivoContado: closingTotal,
+					denominaciones: countEntries(closingCounts),
+					cuentasClientePendientes: pendingCustomerAccounts,
+					creadoPor: employeeName,
+					creadoPorCorreo: employeeEmail,
+					creadoEn: serverTimestamp(),
+					descripcion: 'Cierre de caja',
+				});
 				transaction.update(shiftReference, {
 					estado: 'cerrado',
 					abierto: false,
 					cierre: { empleadoNombre: employeeName, empleadoCorreo: employeeEmail, efectivoContado: closingTotal, denominaciones: countEntries(closingCounts), saldoEsperado: expectedCash, diferencia: cashDifference, duracionMs: Math.max(0, Date.now() - shiftStartedAt), cuentasClientePendientes: pendingCustomerAccounts, cerradoEn: serverTimestamp() },
 				});
 				transaction.update(pointerReference, { abierto: false, cerradoEn: serverTimestamp() });
-				transaction.set(closingMovementReference, {
-					turnoId: activeShiftId,
-					tipo: 'cierre',
-					direccion: 'informativo',
-					metodoId: cashMethod.id,
-					metodoNombre: cashMethod.nombre,
-					monto: closingTotal,
-					saldoEsperado: expectedCash,
-					diferencia: cashDifference,
-					duracionMs: Math.max(0, Date.now() - shiftStartedAt),
-					cuentasClientePendientes: pendingCustomerAccounts,
-					denominaciones: countEntries(closingCounts),
-					descripcion: 'Cierre de caja',
-					creadoPor: employeeName,
-					creadoPorCorreo: employeeEmail,
-					creadoEn: serverTimestamp(),
-				});
 			});
 			setClosingCounts(emptyCount());
 			toast.success('Turno cerrado.');
@@ -403,7 +432,7 @@ function Turno({ profile }) {
 			</form>
 			{activeShift && <section className="shift-movements shift-closed-history" aria-labelledby="closed-shift-title">
 				<header><div><p className="app-eyebrow">Turno cerrado</p><h2 id="closed-shift-title">Cierre de caja</h2></div></header>
-				<MovementLog movements={movements.filter((movement) => movement.turnoId === activeShift.id && movement.tipo === 'cierre')} onPrintClosure={() => printClosingReport(activeShift)} />
+				<MovementLog movements={consolidateClosures(movements.filter((movement) => movement.turnoId === activeShift.id && movement.tipo === 'cierre'))} onPrintClosure={() => printClosingReport(activeShift)} />
 			</section>}
 			</> : <>
 				<div className="shift-summary-strip">
@@ -442,6 +471,12 @@ function Turno({ profile }) {
 			</>}
 		</section>
 	);
+}
+
+function consolidateClosures(movements) {
+	if (movements.length <= 1) return movements;
+	const cashMovement = movements.find((movement) => movement.efectivoContado !== undefined) || movements[0];
+	return [{ ...cashMovement, id: `cierre-${cashMovement.turnoId}`, metodoNombre: 'Todos los métodos', monto: movements.reduce((total, movement) => total + Number(movement.monto || 0), 0), descripcion: 'Cierre de caja' }];
 }
 
 function DenominationCounter({ counts, onChange }) {

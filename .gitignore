@@ -10,6 +10,7 @@
 
 # production
 /build
+/public/facturas/
 
 # misc
 .DS_Store

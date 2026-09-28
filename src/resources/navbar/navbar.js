@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FaBoxes, FaClock, FaCoffee, FaFileInvoiceDollar, FaHome, FaMoneyBillWave, FaSignOutAlt, FaTable, FaUserFriends, FaUsers } from 'react-icons/fa';
+import { FaAddressBook, FaBoxOpen, FaCashRegister, FaChair, FaCoffee, FaCreditCard, FaFileInvoiceDollar, FaHome, FaShoppingCart, FaSignOutAlt, FaUserTie } from 'react-icons/fa';
 import { signOut } from 'firebase/auth';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../server/api';
@@ -12,6 +12,7 @@ function CoffeeIcon() {
 const navigationItems = [
 	{ id: 'Inicio', label: 'Inicio', icon: 'home' },
 	{ id: 'Inventario', label: 'Inventario', icon: 'inventory' },
+	{ id: 'Abastecimiento', label: 'Abastecimiento', icon: 'supply' },
 	{ id: 'Empleados', label: 'Empleados', icon: 'employees' },
 	{ id: 'Turno', label: 'Turno', icon: 'shift' },
 	{ id: 'Clientes', label: 'Clientes', icon: 'customers' },
@@ -22,13 +23,14 @@ const navigationItems = [
 
 const iconByType = {
 	home: FaHome,
-	inventory: FaBoxes,
-	employees: FaUsers,
-	shift: FaClock,
-	tables: FaTable,
+	inventory: FaBoxOpen,
+	supply: FaShoppingCart,
+	employees: FaUserTie,
+	shift: FaCashRegister,
+	tables: FaChair,
 	invoices: FaFileInvoiceDollar,
-	customers: FaUserFriends,
-	payments: FaMoneyBillWave,
+	customers: FaAddressBook,
+	payments: FaCreditCard,
 };
 
 function NavigationIcon({ type }) {
@@ -39,7 +41,8 @@ function NavigationIcon({ type }) {
 function Navbar({ profile, activeSection, onSelect }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [todayInvoiceCount, setTodayInvoiceCount] = useState(0);
-	const visibleNavigationItems = navigationItems.filter((item) => item.id !== 'Métodos de pago' || profile?.rol === 'admin');
+	const adminOnlySections = ['Inventario', 'Empleados', 'Métodos de pago'];
+	const visibleNavigationItems = navigationItems.filter((item) => !adminOnlySections.includes(item.id) || profile?.rol === 'admin');
 
 	useEffect(() => onSnapshot(collection(db, 'facturas'), (snapshot) => {
 		const now = new Date();
@@ -109,6 +112,8 @@ function Navbar({ profile, activeSection, onSelect }) {
 							key={item.id}
 							className={`sidebar-link${activeSection === item.id ? ' sidebar-link-active' : ''}`}
 							type="button"
+							title={item.label}
+							aria-label={item.label}
 							aria-current={activeSection === item.id ? 'page' : undefined}
 							onClick={() => selectSection(item.id)}
 						>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, writeBatch, doc } from 'firebase/firestore';
+import { collection, onSnapshot, writeBatch, doc, deleteField, runTransaction } from 'firebase/firestore';
 import { FaEdit, FaPlus } from 'react-icons/fa';
 import { db } from '../../server/api';
 import LoadingScreen from '../../resources/loading/LoadingScreen';
@@ -156,6 +156,37 @@ function Mesas({ profile }) {
 		}
 	}
 
+	async function separateTables(groupTables) {
+		if (combining || groupTables.length < 2 || groupTables.some((table) => (table.pedido || []).length > 0)) return;
+		const groupId = groupTables[0].grupoId;
+		if (!groupId) return;
+
+		setCombining(true);
+		try {
+			const tableReferences = groupTables.map((table) => doc(db, 'mesas', table.id));
+			await runTransaction(db, async (transaction) => {
+				const snapshots = [];
+				for (const reference of tableReferences) snapshots.push(await transaction.get(reference));
+				const currentTables = snapshots.map((snapshot) => snapshot.data());
+				if (snapshots.some((snapshot) => !snapshot.exists()) || currentTables.some((table) => table.grupoId !== groupId || (table.pedido || []).length > 0)) {
+					throw new Error('El grupo cambió o tiene productos en el pedido.');
+				}
+				tableReferences.forEach((reference) => transaction.update(reference, {
+					grupoId: deleteField(),
+					estado: 'disponible',
+					pedido: [],
+					pedidoDesde: 0,
+					ultimoPedidoEn: 0,
+				}));
+			});
+			toast.success('Mesas separadas correctamente.');
+		} catch (error) {
+			toast.error('No se pudieron separar las mesas. Verifica que el grupo siga vacío.');
+		} finally {
+			setCombining(false);
+		}
+	}
+
 	if (loading) return <LoadingScreen text="Cargando mesas" />;
 
 	return (
@@ -185,6 +216,7 @@ function Mesas({ profile }) {
 								{getTableGroups(floor.id).map((group) => {
 									const primaryTable = group.tables[0];
 									const isCombined = group.tables.length > 1;
+									const hasProducts = group.tables.some((table) => (table.pedido || []).length > 0);
 									return (
 									<div
 										className={`table-item${isCombined ? ' table-item-combined' : ''}${draggingTableId === primaryTable.id ? ' table-item-dragging' : ''}`}
@@ -202,6 +234,7 @@ function Mesas({ profile }) {
 										<span>{getTableLabel(group.tables)}</span>
 										{getTableDescription(primaryTable) && <small className="table-description">{getTableDescription(primaryTable)}</small>}
 										{isCombined && <small>Combinada</small>}
+										{isCombined && !hasProducts && <button className="table-separate-button" type="button" disabled={combining} onPointerDown={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); separateTables(group.tables); }}>Separar mesas</button>}
 										{(Number(primaryTable.pedidoDesde) > 0 || Number(primaryTable.ultimoPedidoEn) > 0) && <div className="table-time-row">{Number(primaryTable.pedidoDesde) > 0 && <span className={getTimeClass(primaryTable.pedidoDesde, 'active')}>Pedido {formatElapsed(primaryTable.pedidoDesde)}</span>}{Number(primaryTable.ultimoPedidoEn) > 0 && <span className={getTimeClass(primaryTable.ultimoPedidoEn, 'idle')}>Sin pedir {formatElapsed(primaryTable.ultimoPedidoEn)}</span>}</div>}
 										{isAdmin && <button className="table-edit-button" type="button" aria-label={`Editar ${getTableLabel(group.tables)}`} onClick={(event) => { event.stopPropagation(); openEditModal(primaryTable, 'mesa'); }}><FaEdit /></button>}
 									</div>

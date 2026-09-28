@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Factura de Venta — Café Cervantes</title>
+<style>
+  :root{
+    --papel:      #FAF6EE;
+    --papel-osc:  #F1E9D8;
+    --tinta:      #2C2118;
+    --tinta-sup:  #5B4636;
+    --cafe:       #4A2E1E;
+    --oro:        #A9762F;
+    --linea:      #D9CBB0;
+    --linea-fte:  #4A2E1E;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:#DCD3C2;
+    font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
+    color:var(--tinta);
+    padding:32px 16px 80px;
+  }
+
+  /* ---------- Controles de pantalla (no se imprimen) ---------- */
+  .controles{
+    max-width:820px;
+    margin:0 auto 24px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+    font-family: Arial, sans-serif;
+  }
+  .controles button{
+    font-family: Arial, sans-serif;
+    font-size:13px;
+    letter-spacing:.02em;
+    padding:9px 16px;
+    border-radius:3px;
+    border:1px solid var(--cafe);
+    background:var(--papel);
+    color:var(--cafe);
+    cursor:pointer;
+  }
+  .controles button.activo{
+    background:var(--cafe);
+    color:var(--papel);
+  }
+  .controles .imprimir{
+    margin-left:auto;
+    background:var(--oro);
+    border-color:var(--oro);
+    color:#fff;
+  }
+  .controles .nota{
+    width:100%;
+    font-size:12px;
+    color:#57503f;
+  }
+
+  /* =========================================================
+     VISTA 1 — FACTURA PARA PDF / IMPRESIÓN CARTA
+     ========================================================= */
+  #vista-pdf{
+    max-width:760px;
+    margin:0 auto;
+    background:var(--papel);
+    border:1px solid var(--linea);
+    box-shadow:0 6px 24px rgba(44,33,24,.18);
+    padding:44px 48px 36px;
+  }
+  .f-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:24px;
+    border-bottom:2px solid var(--linea-fte);
+    padding-bottom:20px;
+  }
+  .f-marca{ display:flex; gap:16px; align-items:center; }
+
+  /* ---- LOGO: bloque por defecto (marca de texto) ---- */
+  .logo-mark{
+    width:56px; height:56px; flex:none;
+    border:1.5px solid var(--cafe);
+    border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:26px;
+  }
+  /* Para usar tu propio logo: comenta el <div class="logo-mark"> en el HTML
+     y descomenta la etiqueta <img class="logo-img">. Ajusta el tamaño aquí. */
+  .logo-img{width:98px;height:98px;object-fit:contain;flex:none;}
+
+  .f-nombre h1{
+    margin:0 0 2px;
+    font-size:22px;
+    letter-spacing:.01em;
+    color:var(--cafe);
+  }
+  .f-nombre p{ margin:1px 0; font-size:12.5px; color:var(--tinta-sup); line-height:1.5; }
+
+  .f-doc{ text-align:right; }
+  .f-doc .tipo{
+    font-size:13px;
+    color:var(--oro);
+    font-weight:bold;
+    margin:0 0 4px;
+  }
+  .f-doc .numero{
+    font-size:20px;
+    color:var(--cafe);
+    margin:0 0 6px;
+  }
+  .f-doc p{ margin:1px 0; font-size:12px; color:var(--tinta-sup); }
+
+  .f-bloques{
+    display:flex;
+    gap:28px;
+    margin-top:22px;
+  }
+  .f-bloque{ flex:1; }
+  .f-bloque h2{
+    font-family: Arial, sans-serif;
+    font-size:10.5px;
+    letter-spacing:.06em;
+    color:var(--oro);
+    margin:0 0 6px;
+  }
+  .f-bloque p{ margin:2px 0; font-size:12.5px; line-height:1.5; }
+
+  table.f-items{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:26px;
+    font-size:12.5px;
+  }
+  table.f-items thead th{
+    font-family: Arial, sans-serif;
+    font-size:10.5px;
+    letter-spacing:.04em;
+    color:var(--papel);
+    background:var(--cafe);
+    padding:8px 8px;
+    text-align:left;
+  }
+  table.f-items thead th.num{ text-align:right; }
+  table.f-items tbody td{
+    padding:7px 8px;
+    border-bottom:1px solid var(--linea);
+  }
+  table.f-items tbody td.num{ text-align:right; }
+  table.f-items tbody tr:nth-child(even){ background:var(--papel-osc); }
+
+  .f-pie{
+    display:flex;
+    justify-content:space-between;
+    gap:28px;
+    margin-top:20px;
+  }
+  .f-legal{
+    flex:1.3;
+    font-size:11px;
+    color:var(--tinta-sup);
+    line-height:1.55;
+  }
+  .f-legal h2{
+    font-family: Arial, sans-serif;
+    font-size:10.5px;
+    letter-spacing:.06em;
+    color:var(--oro);
+    margin:0 0 6px;
+  }
+  .f-totales{ flex:1; }
+  .f-totales table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  .f-totales td{ padding:4px 0; }
+  .f-totales td.et{ color:var(--tinta-sup); }
+  .f-totales td.va{ text-align:right; }
+  .f-totales tr.total td{
+    border-top:2px solid var(--linea-fte);
+    font-size:16px;
+    color:var(--cafe);
+    padding-top:8px;
+    font-weight:bold;
+  }
+  .f-letras{
+    font-size:11px;
+    font-style:italic;
+    color:var(--tinta-sup);
+    margin-top:10px;
+  }
+
+  .f-nota-final{
+    text-align:center;
+    font-size:10.5px;
+    color:var(--tinta-sup);
+    border-top:1px solid var(--linea);
+    margin-top:24px;
+    padding-top:12px;
+  }
+
+  /* =========================================================
+     VISTA 2 — RECIBO TÉRMICO 58mm
+     ========================================================= */
+  #vista-58mm{
+    width:58mm;
+    margin:0 auto;
+    background:#fff;
+    color:#000;
+    font-family: 'Courier New', Consolas, monospace;
+    font-size:10.5px;
+    line-height:1.45;
+    padding:6mm 3mm;
+    box-shadow:0 6px 24px rgba(44,33,24,.18);
+  }
+  .t-center{ text-align:center; }
+  .t-logo{ font-size:20px; text-align:center; margin-bottom:2px; }
+  /* Para el ticket: comenta el <div class="t-logo"> y descomenta <img class="t-logo-img"> */
+  .t-logo-img{display:block;margin:0 auto 4px;max-width:38mm;max-height:19mm;}
+  .t-nombre{ font-weight:bold; font-size:12px; text-align:center; }
+  .t-dato{ text-align:center; font-size:9.5px; }
+  .t-sep{ border-top:1px dashed #000; margin:6px 0; }
+  .t-fila{ display:flex; justify-content:space-between; }
+  .t-item{ margin-top:3px; }
+  .t-item .l1{ display:flex; justify-content:space-between; font-weight:bold; }
+  .t-item .l2{ font-size:9.5px; padding-left:6px; color:#333; }
+  .t-tot{ font-weight:bold; font-size:12px; }
+  .t-chico{ font-size:8.5px; }
+
+  /* =========================================================
+     IMPRESIÓN
+     ========================================================= */
+  @media print{
+    body{ background:#fff; padding:0; }
+    .controles{ display:none !important; }
+    #vista-pdf, #vista-58mm{ box-shadow:none; }
+    #vista-pdf.oculto, #vista-58mm.oculto{ display:none !important; }
+    #vista-pdf{ border:none; }
+  }
+
+  @media (max-width:640px){
+    #vista-pdf{ padding:26px 20px; }
+    .f-header, .f-bloques, .f-pie{ flex-direction:column; }
+    .f-qr-wrap{ margin-top:10px; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- ============ CONTROLES (solo pantalla) ============ -->
+  <div class="controles">
+    <button id="btn-pdf" class="activo" onclick="mostrar('pdf')">Vista factura (PDF / carta)</button>
+    <button id="btn-58" onclick="mostrar('58')">Vista recibo (58mm)</button>
+    <button class="imprimir" onclick="imprimirActual()">Imprimir / Guardar PDF</button>
+    <div class="nota">Edita los datos marcados con [ ] en el código antes de usar esta plantilla. El bloque del logo tiene instrucciones en un comentario junto a él.</div>
+  </div>
+
+  <!-- =========================================================
+       VISTA 1: FACTURA COMPLETA (PDF / carta)
+       ========================================================= -->
+  <div id="vista-pdf">
+
+    <div class="f-header">
+      <div class="f-marca">
+        <img src="../../resources/images/image.png" alt="Logo de Café Cervantes" class="logo-img">
+        <div class="f-nombre">
+          <h1>Café Cervantes</h1>
+          <p>Ciro Esteban Villarreal Amaya</p>
+          <p>NIT 13872916-1 · No responsable de IVA</p>
+          <p>Calle 36 # 12-9, Bucaramanga, Santander · Tel 320 228 2220 · cafecervantes2021@gmail.com</p>
+        </div>
+      </div>
+      <div class="f-doc">
+        <p class="tipo">Factura de venta</p>
+        <p class="numero" id="factura-numero">No. [00124]</p>
+        <p>Fecha de expedición: <span id="factura-fecha">[27/09/2026]</span></p>
+        <p>Hora: <span id="factura-hora">[10:42:07]</span></p>
+        <p>Forma de pago: <span id="factura-tipo-pago">[Contado]</span> — Medio: <span id="factura-medio-pago">[Efectivo]</span></p>
+      </div>
+    </div>
+
+    <div class="f-bloques">
+      <div class="f-bloque">
+        <h2>Cliente</h2>
+        <p id="factura-cliente">[Consumidor final] / [Nombre o razón social]</p>
+        <p id="factura-documento">[C.C./NIT — si el cliente lo solicita]</p>
+        <p id="factura-direccion">[Dirección] · [Ciudad]</p>
+        <p id="factura-telefono"></p>
+      </div>
+      <div class="f-bloque">
+        <h2>Nota sobre este documento</h2>
+        <p>Comprobante de venta interno, numerado de forma consecutiva.</p>
+        <p>No corresponde a una factura electrónica DIAN (sin CUFE ni proveedor tecnológico).</p>
+      </div>
+    </div>
+
+    <table class="f-items">
+      <thead>
+        <tr>    
+          <th>Código</th>
+          <th>Descripción</th>
+          <th class="num">Cant.</th>
+          <th class="num">Vr. unit.</th>
+          <th class="num">Vr. total</th>
+        </tr>
+      </thead>
+      <tbody id="factura-productos">
+        <tr>
+          <td>[CAF-001]</td>
+          <td>[Café americano grande]</td>
+          <td class="num">[2]</td>
+          <td class="num">[$6.500]</td>
+          <td class="num">[$13.000]</td>
+        </tr>
+        <tr>
+          <td>[PAN-014]</td>
+          <td>[Croissant de almendras]</td>
+          <td class="num">[1]</td>
+          <td class="num">[$7.800]</td>
+          <td class="num">[$7.800]</td>
+        </tr>
+        <tr>
+          <td>[CAF-009]</td>
+          <td>[Agua sin gas 500ml]</td>
+          <td class="num">[1]</td>
+          <td class="num">[$3.000]</td>
+          <td class="num">[$3.000]</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="f-pie">
+      <div class="f-legal">
+        <h2>Datos mínimos de este comprobante (Art. 617 E.T.)</h2>
+        <p>Denominado expresamente como "factura de venta"; numeración consecutiva propia del negocio; fecha de expedición; nombre y NIT/C.C. de quien vende; descripción de lo vendido y valor total.</p>
+        <p>Esta factura de venta se asimila en todos sus efectos a una letra de cambio, de acuerdo con el artículo 774 del Código de Comercio.</p>
+        <p>No responsable de IVA — no se genera ni discrimina IVA en esta venta.</p>
+        <p>Este documento se expide sin sistema de facturación electrónica DIAN, por no estar obligado a facturar electrónicamente.</p>
+      </div>
+      <div class="f-totales">
+        <table>
+          <tr><td class="et">Subtotal</td><td class="va" id="factura-subtotal">[$23.800]</td></tr>
+          <tr><td class="et">Descuentos</td><td class="va" id="factura-descuento">[$0]</td></tr>
+          <tr class="total"><td>Total a pagar</td><td class="va" id="factura-total">[$23.800]</td></tr>
+        </table>
+        <p class="f-letras" id="factura-letras">Son: [veintitrés mil ochocientos pesos M/CTE]</p>
+      </div>
+    </div>
+
+    <p class="f-nota-final">Gracias por su compra · Café Cervantes · Conserve este comprobante</p>
+  </div>
+
+  <!-- =========================================================
+       VISTA 2: RECIBO TÉRMICO 58mm
+       ========================================================= -->
+  <div id="vista-58mm" class="oculto" style="display:none">
+
+    <img src="../../resources/images/image.png" alt="Logo de Café Cervantes" class="t-logo-img">
+
+    <div class="t-nombre">CAFÉ CERVANTES</div>
+    <div class="t-dato">Ciro Esteban Villarreal Amaya</div>
+    <div class="t-dato">NIT 13872916-1</div>
+    <div class="t-dato">Calle 36 # 12-9, Bucaramanga, Santander</div>
+    <div class="t-dato">Tel 320 228 2220</div>
+
+    <div class="t-sep"></div>
+
+    <div class="t-center"><strong>FACTURA DE VENTA</strong></div>
+    <div class="t-fila"><span>No.</span><span id="ticket-numero">[00124]</span></div>
+    <div class="t-fila"><span>Fecha</span><span id="ticket-fecha">[27/09/2026]</span></div>
+    <div class="t-fila"><span>Hora</span><span id="ticket-hora">[10:42:07]</span></div>
+    <div class="t-fila"><span>Cliente</span><span id="ticket-cliente">[C.F. / CC 123...]</span></div>
+    <div class="t-fila"><span>Pago</span><span id="ticket-pago">[Contado-Tarjeta]</span></div>
+
+    <div class="t-sep"></div>
+
+    <div id="ticket-productos">
+    <div class="t-item">
+      <div class="l1"><span>[2] Café americano gde</span><span>[$13.000]</span></div>
+      <div class="l2">[$6.500] c/u</div>
+    </div>
+    <div class="t-item">
+      <div class="l1"><span>[1] Croissant almendras</span><span>[$7.800]</span></div>
+      <div class="l2">[$7.800] c/u</div>
+    </div>
+    <div class="t-item">
+      <div class="l1"><span>[1] Agua sin gas 500ml</span><span>[$3.000]</span></div>
+      <div class="l2">[$3.000] c/u</div>
+    </div>
+    </div>
+
+    <div class="t-sep"></div>
+
+    <div class="t-fila t-tot"><span>TOTAL</span><span id="ticket-total">[$23.800]</span></div>
+
+    <div class="t-sep"></div>
+
+    <div class="t-chico t-center">No responsable de IVA</div>
+    <div class="t-chico t-center">Comprobante de venta interno</div>
+    <div class="t-chico t-center">(sin facturación electrónica DIAN)</div>
+
+    <div class="t-sep"></div>
+    <div class="t-center t-chico">Esta factura se asimila a una letra<br>de cambio (Art. 774 C. Cio.)</div>
+    <div class="t-center" style="margin-top:6px;">¡Gracias por su visita!</div>
+  </div>
+
+<script>
+  function mostrar(cual){
+    const pdf = document.getElementById('vista-pdf');
+    const t58 = document.getElementById('vista-58mm');
+    const bPdf = document.getElementById('btn-pdf');
+    const b58  = document.getElementById('btn-58');
+    if(cual === 'pdf'){
+      pdf.style.display = ''; pdf.classList.remove('oculto');
+      t58.style.display = 'none'; t58.classList.add('oculto');
+      bPdf.classList.add('activo'); b58.classList.remove('activo');
+    } else {
+      t58.style.display = ''; t58.classList.remove('oculto');
+      pdf.style.display = 'none'; pdf.classList.add('oculto');
+      b58.classList.add('activo'); bPdf.classList.remove('activo');
+    }
+  }
+
+  function imprimirActual(){
+    const es58 = document.getElementById('vista-58mm').style.display !== 'none';
+    let estilo = document.getElementById('estilo-pagina');
+    if(!estilo){
+      estilo = document.createElement('style');
+      estilo.id = 'estilo-pagina';
+      document.head.appendChild(estilo);
+    }
+    estilo.textContent = es58
+      ? '@page{ size:58mm auto; margin:0; }'
+      : '@page{ size:A4; margin:14mm; }';
+    window.print();
+  }
+
+  function aplicarDatosFactura(){
+    const invoiceKey = new URLSearchParams(window.location.search).get('data');
+    if(!invoiceKey) return;
+    const savedInvoice = sessionStorage.getItem(invoiceKey);
+    sessionStorage.removeItem(invoiceKey);
+    if(!savedInvoice) return;
+    let factura;
+    try{
+      factura = JSON.parse(savedInvoice);
+    } catch(error){
+      return;
+    }
+
+    const cliente = factura.customer || {};
+    const productos = Array.isArray(factura.products) ? factura.products : [];
+    const dinero = valor => `$${Number(valor || 0).toLocaleString('es-CO')}`;
+    const texto = (id, valor) => {
+      const elemento = document.getElementById(id);
+      if(elemento) elemento.textContent = valor;
+    };
+    const direccion = [cliente.address, cliente.city].filter(Boolean).join(' · ');
+    const documento = cliente.document ? `CC/NIT ${cliente.document}` : 'Sin identificación';
+    const medioPago = factura.paymentMethods || 'Sin método';
+
+    document.title = `Factura ${factura.number} — Café Cervantes`;
+    texto('factura-numero', `No. ${factura.number}`);
+    texto('factura-fecha', factura.date || '');
+    texto('factura-hora', factura.time || '');
+    texto('factura-tipo-pago', factura.paymentType || 'Contado');
+    texto('factura-medio-pago', medioPago);
+    texto('factura-cliente', cliente.name || 'Consumidor final');
+    texto('factura-documento', documento);
+    texto('factura-direccion', direccion || 'Dirección no registrada');
+    texto('factura-telefono', cliente.phone ? `Tel. ${cliente.phone}` : '');
+    texto('ticket-numero', factura.number || '');
+    texto('ticket-fecha', factura.date || '');
+    texto('ticket-hora', factura.time || '');
+    texto('ticket-cliente', cliente.name || 'Consumidor final');
+    texto('ticket-pago', `${factura.paymentType || 'Contado'} - ${medioPago}`);
+    texto('ticket-total', dinero(factura.total));
+
+    const telefono = document.getElementById('factura-telefono');
+    if(telefono && !cliente.phone) telefono.style.display = 'none';
+
+    const subtotal = productos.reduce((suma, producto) => suma + Number(producto.unitPrice || 0) * Number(producto.quantity || 0), 0);
+    texto('factura-subtotal', dinero(subtotal));
+    texto('factura-descuento', dinero(0));
+    texto('factura-total', dinero(factura.total));
+    const letras = document.getElementById('factura-letras');
+    if(letras) letras.style.display = 'none';
+
+    const filas = document.getElementById('factura-productos');
+    filas.replaceChildren();
+    productos.forEach(producto => {
+      const fila = document.createElement('tr');
+      const valores = [producto.code || '—', producto.name || 'Producto', producto.quantity || 0, dinero(producto.unitPrice), dinero(Number(producto.unitPrice || 0) * Number(producto.quantity || 0))];
+      valores.forEach((valor, indice) => {
+        const celda = document.createElement('td');
+        if(indice > 1) celda.className = 'num';
+        celda.textContent = valor;
+        fila.appendChild(celda);
+      });
+      filas.appendChild(fila);
+    });
+    if(!productos.length){
+      const fila = document.createElement('tr');
+      const celda = document.createElement('td');
+      celda.colSpan = 5;
+      celda.textContent = factura.paymentType === 'Abono' ? 'Abono de cliente' : 'Sin productos registrados';
+      fila.appendChild(celda);
+      filas.appendChild(fila);
+    }
+
+    const itemsTicket = document.getElementById('ticket-productos');
+    itemsTicket.replaceChildren();
+    productos.forEach(producto => {
+      const item = document.createElement('div');
+      item.className = 't-item';
+      const lineaPrincipal = document.createElement('div');
+      lineaPrincipal.className = 'l1';
+      const nombre = document.createElement('span');
+      nombre.textContent = `${producto.quantity || 0} ${producto.name || 'Producto'}`;
+      const totalProducto = document.createElement('span');
+      totalProducto.textContent = dinero(Number(producto.unitPrice || 0) * Number(producto.quantity || 0));
+      lineaPrincipal.append(nombre, totalProducto);
+      const lineaUnitario = document.createElement('div');
+      lineaUnitario.className = 'l2';
+      lineaUnitario.textContent = `${dinero(producto.unitPrice)} c/u`;
+      item.append(lineaPrincipal, lineaUnitario);
+      itemsTicket.appendChild(item);
+    });
+    if(!productos.length){
+      const sinProductos = document.createElement('div');
+      sinProductos.className = 't-center t-chico';
+      sinProductos.textContent = factura.paymentType === 'Abono' ? 'Abono de cliente' : 'Sin productos registrados';
+      itemsTicket.appendChild(sinProductos);
+    }
+  }
+
+  aplicarDatosFactura();
+</script>
+
+</body>
+</html>

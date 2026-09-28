@@ -78,7 +78,8 @@
 }
 
 .payment-method-card header,
-.payment-method-balance {
+.payment-method-balances,
+.payment-method-actions {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -95,14 +96,116 @@
 	text-transform: uppercase;
 }
 
-.payment-method-balance {
+.payment-method-balances {
 	padding-top: 12px;
 	border-top: 1px solid var(--color-border-light);
 }
 
-.payment-method-balance strong {
+.payment-method-balances div {
+	display: grid;
+	gap: 4px;
+}
+
+.payment-method-balances span,
+.payment-method-history span,
+.payment-method-history small {
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
+}
+
+.payment-method-balances strong {
 	color: var(--color-total);
-	font-size: 1.35rem;
+	font-size: 1.15rem;
+}
+
+.payment-method-edit,
+.payment-method-edit-form button {
+	padding: 7px 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 4px;
+	background: var(--color-background);
+	color: var(--color-text-primary);
+	cursor: pointer;
+	font: inherit;
+	font-size: var(--font-size-xs);
+}
+
+.payment-method-edit-form,
+.payment-method-history {
+	margin-top: 24px;
+	padding: 18px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-surface);
+}
+
+.payment-method-edit-form {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 12px;
+}
+
+.payment-method-edit-form h2,
+.payment-method-edit-form > div,
+.payment-method-history header {
+	grid-column: 1 / -1;
+}
+
+.payment-method-edit-form label {
+	display: grid;
+	gap: 6px;
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-sm);
+}
+
+.payment-method-edit-form input {
+	min-height: 38px;
+	padding: 0 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 4px;
+	background: var(--color-background);
+	font: inherit;
+}
+
+.payment-method-edit-form > div {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.payment-method-edit-form > div button:last-child {
+	border-color: var(--button-primary);
+	background: var(--button-primary);
+	color: var(--color-text-light);
+}
+
+.payment-method-history header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.payment-method-history h2 {
+	margin: 0;
+}
+
+.payment-method-history article {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 12px 0;
+	border-top: 1px solid var(--color-border-light);
+}
+
+.payment-method-history article div {
+	display: grid;
+	gap: 4px;
+}
+
+.payment-method-history article small {
+	text-align: right;
 }
 
 .payment-method-delete {
@@ -125,9 +228,19 @@
 
 @media (max-width: 700px) {
 	.payment-methods-header,
-	.payment-methods-form {
+	.payment-methods-form,
+	.payment-method-edit-form {
 		align-items: stretch;
 		grid-template-columns: 1fr;
 		flex-direction: column;
+	}
+
+	.payment-method-history article {
+		align-items: start;
+		flex-direction: column;
+	}
+
+	.payment-method-history article small {
+		text-align: left;
 	}
 }

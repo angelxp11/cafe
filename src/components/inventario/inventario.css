@@ -216,7 +216,8 @@
 
 .inventory-actions button,
 .inventory-modal-header > button,
-.ingredient-row button {
+.ingredient-row button,
+.flavor-row button {
     display: grid;
     width: 32px;
     height: 32px;
@@ -232,7 +233,9 @@
 .inventory-actions button:hover,
 .inventory-actions button:focus-visible,
 .inventory-modal-header > button:hover,
-.ingredient-row button:hover {
+.ingredient-row button:hover,
+.flavor-row button:hover,
+.flavor-row button:focus-visible {
     background: var(--color-selected);
     outline: none;
 }

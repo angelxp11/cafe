@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, deleteField, doc, getDocs, onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { FaBeer, FaCheck, FaCoffee, FaCookieBite, FaGlassWhiskey, FaMinus, FaPlus, FaShoppingCart, FaTag, FaTimes, FaUtensils, FaUserFriends } from 'react-icons/fa';
 import { auth, db } from '../../../server/api';
+import { shiftBalance } from '../../../server/paymentMethods';
 import LoadingScreen from '../../../resources/loading/LoadingScreen';
 import toast from '../../../resources/toast/toast';
 import Caja from './caja/caja';
@@ -277,14 +278,52 @@ function Cuenta({ table, profile, onClose }) {
 			const profileSnapshot = currentUser?.email ? await transaction.get(doc(db, 'usuarios', currentUser.email.trim().toLowerCase())) : null;
 			const profileData = profileSnapshot?.exists() ? profileSnapshot.data() : {};
 			const paymentActor = [profileData.nombre, profileData.apellido].filter(Boolean).join(' ') || currentUser?.email || 'Usuario';
+			const inventoryIds = [...new Set(paidOrder.map((item) => item.id).filter(Boolean))];
+			const inventorySnapshots = await Promise.all(inventoryIds.map((productId) => transaction.get(doc(db, 'inventario', productId))));
+			const inventoryProducts = new Map(inventorySnapshots.filter((snapshot) => snapshot.exists()).map((snapshot) => [snapshot.id, { reference: doc(db, 'inventario', snapshot.id), data: snapshot.data() }]));
+			if (inventoryProducts.size !== inventoryIds.length) throw new Error('Uno de los productos ya no existe en el inventario.');
+			const inventoryAdjustments = {};
+			for (const item of paidOrder) {
+				const product = inventoryProducts.get(item.id);
+				const quantity = Number(item.cantidad) || 0;
+				if (!product || quantity <= 0) throw new Error('No se pudo validar el producto de la factura.');
+				if (product.data.modoSabores === 'sabores') {
+					let remaining = quantity;
+					const flavors = (product.data.sabores || []).map((flavor) => {
+						const stock = Number(typeof flavor === 'string' ? 0 : flavor.stock || 0);
+						const deducted = Math.min(stock, remaining);
+						remaining -= deducted;
+						if (deducted) {
+							const name = typeof flavor === 'string' ? flavor : flavor.nombre;
+						inventoryAdjustments[item.id] = inventoryAdjustments[item.id] || { cantidad: 0, sabores: {} };
+							inventoryAdjustments[item.id].sabores[name] = (inventoryAdjustments[item.id].sabores[name] || 0) + deducted;
+							inventoryAdjustments[item.id].cantidad += deducted;
+						}
+						return deducted && typeof flavor !== 'string' ? { ...flavor, stock: stock - deducted } : flavor;
+					});
+					if (remaining > 0) throw new Error(`No hay suficientes existencias de ${item.nombre}.`);
+					product.data = { ...product.data, sabores: flavors };
+				} else {
+					const stock = Number(product.data.stock || 0);
+					if (stock < quantity) throw new Error(`No hay suficientes existencias de ${item.nombre}.`);
+					product.data = { ...product.data, stock: stock - quantity };
+					inventoryAdjustments[item.id] = { cantidad: (inventoryAdjustments[item.id]?.cantidad || 0) + quantity };
+				}
+			}
+			for (const [productId, product] of inventoryProducts) {
+				if (inventoryAdjustments[productId]) transaction.update(product.reference, {
+					...(product.data.modoSabores === 'sabores' ? { sabores: product.data.sabores } : { stock: product.data.stock }),
+					ultimoMovimientoInventarioId: invoiceReference.id,
+				});
+			}
 							if (separatesCombinedTables) {
 								tableIds.forEach((tableId) => transaction.update(doc(db, 'mesas', tableId), { pedido: [], pedidoDesde: 0, ultimoPedidoEn: 0, grupoId: deleteField(), descripcion: deleteField(), estado: 'disponible' }));
 			} else {
 				transaction.update(tableReference, paidItems ? { pedido: remainingOrder, pedidoDesde: remainingOrder.length ? liveTable.pedidoDesde || Date.now() : 0, ultimoPedidoEn: remainingOrder.length ? Date.now() : 0 } : { pedido: [], pedidoDesde: 0, ultimoPedidoEn: 0 });
 			}
 			Object.entries(balanceByMethod).forEach(([methodId, amount]) => {
-				const currentBalance = Number(methodSnapshots.get(methodId).data().saldo || 0);
-				transaction.update(doc(db, 'metodosPago', methodId), { saldo: currentBalance + amount });
+				const currentBalance = shiftBalance(methodSnapshots.get(methodId).data());
+				transaction.update(doc(db, 'metodosPago', methodId), { saldoTurno: currentBalance + amount });
 			});
 			if (activeShiftId) paymentAllocations.forEach((allocation, index) => {
 				const methodData = allocation.method || methodSnapshots.get(allocation.methodId).data();
@@ -348,6 +387,7 @@ function Cuenta({ table, profile, onClose }) {
 				registradaPorCorreo: currentUser?.email || '',
 				observacion: '',
 				pagadoEn: serverTimestamp(),
+				inventarioAjustes: inventoryAdjustments,
 			});
 		});
 

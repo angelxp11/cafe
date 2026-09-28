@@ -41,7 +41,7 @@ function Register({ onLogin }) {
 				apellido: lastName.trim().toLocaleUpperCase('es-ES'),
 				correo: normalizedEmail,
 				rol: 'empleado',
-				activo: true,
+				activo: false,
 			});
 			toast.success('Cuenta creada correctamente.');
 		} catch (error) {

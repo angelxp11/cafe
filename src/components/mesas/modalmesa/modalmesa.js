@@ -33,7 +33,7 @@ function ModalMesa({ floors, editingItem, onClose, onCreated }) {
 			} else {
 				const selectedFloor = floors.find((floor) => floor.id === floorId);
 				const tableData = {
-					numero: Number(tableNumber),
+							numero: tableNumber.trim(),
 					pisoId: floorId,
 					pisoNombre: selectedFloor.nombre,
 					estado: 'disponible',
@@ -64,7 +64,7 @@ function ModalMesa({ floors, editingItem, onClose, onCreated }) {
 				<form className="table-modal-form" onSubmit={handleSubmit}>
 					{mode === 'mesa' ? <>
 						<label htmlFor="table-number">Número de mesa</label>
-						<input id="table-number" type="number" min="1" value={tableNumber} onChange={(event) => setTableNumber(event.target.value)} />
+						<input id="table-number" type="text" inputMode="numeric" pattern="[0-9]*" value={tableNumber} onChange={(event) => setTableNumber(event.target.value.replace(/\D/g, ''))} />
 						<label htmlFor="table-floor">Piso</label>
 						<select id="table-floor" value={floorId} onChange={(event) => setFloorId(event.target.value)} disabled={floors.length === 0}>
 							<option value="">Selecciona un piso</option>

@@ -127,6 +127,31 @@
 	border-bottom: 0;
 }
 
+.invoices-table tbody tr.invoice-row-cancelled {
+	background: #fff3f1;
+	color: #8f2923;
+}
+
+.invoices-table tbody tr.invoice-row-cancelled td {
+	border-bottom-color: #f0cbc6;
+}
+
+.invoices-table tbody tr.invoice-row-cancelled td:first-child small {
+	color: #a34a42;
+}
+
+.invoice-cancelled-badge {
+	display: inline-block;
+	margin-top: 6px;
+	padding: 3px 7px;
+	border: 1px solid #e2a8a2;
+	border-radius: 3px;
+	background: #fbe1de;
+	color: #8f2923;
+	font-size: var(--font-size-xs);
+	font-weight: var(--font-semibold);
+}
+
 .invoices-table td:first-child small {
 	display: block;
 	margin-top: 4px;
@@ -175,6 +200,82 @@
 	border-radius: 8px;
 	background: var(--color-surface);
 	box-shadow: 0 24px 70px rgb(45 33 27 / 24%);
+}
+
+.invoice-customer-backdrop {
+	z-index: 1600;
+}
+
+.invoice-customer-modal {
+	width: min(520px, 100%);
+}
+
+.invoice-customer-form {
+	display: grid;
+	gap: 14px;
+}
+
+.invoice-customer-form label {
+	display: grid;
+	gap: 6px;
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
+}
+
+.invoice-customer-form input {
+	width: 100%;
+	min-width: 0;
+	min-height: 40px;
+	box-sizing: border-box;
+	padding: 0 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 5px;
+	background: var(--color-background);
+	color: var(--color-text-primary);
+	font: inherit;
+}
+
+.invoice-customer-fields {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+}
+
+.invoice-customer-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	margin-top: 4px;
+}
+
+.invoice-customer-actions button {
+	min-height: 38px;
+	padding: 0 12px;
+	border: 1px solid var(--color-border);
+	border-radius: 5px;
+	background: var(--color-surface);
+	color: var(--color-text-primary);
+	cursor: pointer;
+	font: inherit;
+	font-weight: var(--font-semibold);
+}
+
+.invoice-customer-actions button[type="submit"] {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	border-color: var(--button-primary);
+	background: var(--button-primary);
+	color: var(--color-text-light);
+}
+
+@media (max-width: 480px) {
+	.invoice-customer-fields {
+		grid-template-columns: 1fr;
+	}
+	.invoice-customer-actions {
+		flex-direction: column-reverse;
+	}
 }
 
 .invoice-modal > header {
@@ -292,6 +393,40 @@
 	margin: 10px 0;
 }
 
+.invoice-cancelled-notice {
+	display: grid;
+	gap: 5px;
+	margin: 12px 0;
+	padding: 12px 14px;
+	border: 1px solid #e2a8a2;
+	border-left: 4px solid #b43b32;
+	border-radius: 4px;
+	background: #fff3f1;
+	color: #8f2923;
+	font-size: var(--font-size-sm);
+}
+
+.invoice-cancelled-notice strong {
+	font-size: var(--font-size-sm);
+}
+
+.invoice-print-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 7px;
+	min-height: 38px;
+	margin-top: 14px;
+	padding: 0 12px;
+	border: 0;
+	border-radius: 5px;
+	background: var(--button-primary);
+	color: var(--color-text-light);
+	cursor: pointer;
+	font: inherit;
+	font-weight: var(--font-semibold);
+}
+
 .invoice-admin-actions {
 	display: flex;
 	align-items: center;
@@ -323,6 +458,57 @@
 	cursor: pointer;
 	font: inherit;
 	font-weight: var(--font-semibold);
+}
+
+.invoice-cancel-form {
+	display: grid;
+	justify-items: start;
+	gap: 10px;
+	margin-top: 16px;
+	padding-top: 14px;
+	border-top: 1px solid var(--color-border-light);
+}
+
+.invoice-cancel-form label {
+	display: grid;
+	width: 100%;
+	gap: 6px;
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
+}
+
+.invoice-cancel-form textarea {
+	width: 100%;
+	min-height: 82px;
+	box-sizing: border-box;
+	resize: vertical;
+	padding: 10px;
+	border: 1px solid var(--color-border);
+	border-radius: 5px;
+	background: var(--color-background);
+	color: var(--color-text-primary);
+	font: inherit;
+}
+
+.invoice-cancel-form button {
+	display: inline-flex;
+	min-height: 38px;
+	align-items: center;
+	justify-content: center;
+	gap: 7px;
+	padding: 0 12px;
+	border: 1px solid #a52f28;
+	border-radius: 5px;
+	background: #a52f28;
+	color: #fff;
+	cursor: pointer;
+	font: inherit;
+	font-weight: var(--font-semibold);
+}
+
+.invoice-cancel-form button:disabled {
+	cursor: not-allowed;
+	opacity: 0.55;
 }
 
 .invoice-edit-form {

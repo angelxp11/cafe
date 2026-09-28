@@ -1,3 +1,49 @@
 .app-welcome h2 {
 	color: var(--color-text-primary);
 }
+
+.homepage-overview {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	margin-top: 24px;
+	border-block: 1px solid var(--color-border);
+	background: var(--color-surface);
+}
+
+.homepage-overview-item {
+	display: grid;
+	min-width: 0;
+	gap: 6px;
+	padding: 18px 20px;
+}
+
+.homepage-overview-item + .homepage-overview-item {
+	border-inline-start: 1px solid var(--color-border);
+}
+
+.homepage-overview-item span {
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
+}
+
+.homepage-overview-item strong {
+	overflow-wrap: anywhere;
+	color: var(--color-text-primary);
+	font-size: var(--font-size-lg);
+}
+
+.homepage-overview-item small {
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
+}
+
+@media (max-width: 640px) {
+	.homepage-overview {
+		grid-template-columns: 1fr;
+	}
+
+	.homepage-overview-item + .homepage-overview-item {
+		border-inline-start: 0;
+		border-top: 1px solid var(--color-border);
+	}
+}

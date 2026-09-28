@@ -186,7 +186,7 @@ service cloud.firestore {
 
     match /pedidosAbastecimiento/{pedidoId} {
       allow read: if request.auth != null
-        && (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin'
+        && (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol in ['admin', 'empleado']
           || resource.data.solicitadoPorCorreo == request.auth.token.email);
       allow create: if request.auth != null
         && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol in ['admin', 'empleado']
@@ -198,7 +198,7 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/configuracion/turnoActual).data.turnoId == request.resource.data.turnoPedidoId
         && get(/databases/$(database)/documents/turnos/$(request.resource.data.turnoPedidoId)).data.abierto == true;
       allow update: if request.auth != null
-        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin'
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol in ['admin', 'empleado']
         && resource.data.estado == 'pedido'
         && request.resource.data.estado == 'recibido'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'recibidoEn', 'recibidoPor', 'recibidoPorCorreo', 'turnoRecepcionId', 'llegoCompleto', 'lineasRecibidas', 'faltantes', 'montoPagado', 'metodoId', 'metodoNombre', 'movimientoId'])

@@ -93,7 +93,9 @@ function Abastecer({ profile }) {
 	const employeeName = [profile?.nombre, profile?.apellido].filter(Boolean).join(' ') || profile?.correo || auth.currentUser?.email || 'Usuario';
 	const employeeEmail = profile?.correo || auth.currentUser?.email || '';
 	const isAdmin = profile?.rol === 'admin';
-	const canAccessReplenishment = isAdmin || profile?.rol === 'empleado';
+	const isEmployee = profile?.rol === 'empleado';
+	const canAccessReplenishment = isAdmin || isEmployee;
+	const canReceiveReplenishment = isAdmin || isEmployee;
 	const loading = !ordersLoaded || !productsLoaded;
 	const categories = [...new Set(products.map((product) => product.categoria).filter(Boolean))].sort((first, second) => first.localeCompare(second, 'es'));
 	const filteredProducts = products.filter((product) => {
@@ -125,7 +127,7 @@ function Abastecer({ profile }) {
 			setProductsLoaded(true);
 		});
 		const orderCollection = collection(db, 'pedidosAbastecimiento');
-		const ordersQuery = isAdmin ? orderCollection : query(orderCollection, where('solicitadoPorCorreo', '==', employeeEmail));
+		const ordersQuery = canAccessReplenishment ? orderCollection : query(orderCollection, where('solicitadoPorCorreo', '==', employeeEmail));
 		const stopOrders = onSnapshot(ordersQuery, (snapshot) => {
 			setOrders(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((first, second) => (second.solicitadoEn?.toMillis?.() || 0) - (first.solicitadoEn?.toMillis?.() || 0)));
 			setOrdersLoaded(true);
@@ -147,7 +149,7 @@ function Abastecer({ profile }) {
 			stopMethods();
 			stopShift();
 		};
-	}, [employeeEmail, isAdmin]);
+	}, [canAccessReplenishment, employeeEmail, isAdmin]);
 
 	function addProductToCart(product) {
 		if (orderLines.some((line) => line.productoId === product.id)) return;
@@ -259,7 +261,7 @@ function Abastecer({ profile }) {
 
 	async function receiveOrder(event) {
 		event.preventDefault();
-		if (!isAdmin || !selectedOrder) return;
+		if (!canReceiveReplenishment || !selectedOrder) return;
 		const amount = Number(String(paidAmount).replace(/\D/g, '')) || 0;
 		const receivedLines = selectedOrder.lineas.map((line, index) => {
 			const quantity = receivedAll ? Number(line.cantidadSolicitada) : Number(receivedQuantities[index]);
@@ -401,7 +403,7 @@ function Abastecer({ profile }) {
 					const receivedLine = order.lineasRecibidas?.[index];
 					return <li key={`${line.productoId}-${line.sabor}-${index}`}>{line.productoNombre}{line.sabor ? ` · ${line.sabor}` : ''}: {order.estado === 'recibido' ? `recibió ${receivedLine?.cantidadRecibida || 0} de ${line.cantidadSolicitada} ${supplyLabel(line.modoAbastecimiento, line.cantidadSolicitada)} (${receivedLine?.unidadesRecibidas || 0} unidades)` : `${line.cantidadSolicitada} ${supplyLabel(line.modoAbastecimiento, line.cantidadSolicitada)} (${line.unidadesSolicitadas} unidades)`}</li>;
 				})}</ul>
-				{order.estado === 'recibido' ? <><p className="replenishment-meta">Recibió {order.recibidoPor} · {timestampLabel(order.recibidoEn)} · Pagado {money(order.montoPagado)}</p>{order.faltantes?.length > 0 && <p className="replenishment-shortage">Faltó: {order.faltantes.map((line) => `${line.productoNombre}${line.sabor ? ` (${line.sabor})` : ''}, ${line.cantidadSolicitada - line.cantidadRecibida} ${supplyLabel(line.modoAbastecimiento, line.cantidadSolicitada - line.cantidadRecibida)}`).join('; ')}.</p>}<button className="replenishment-receive-button" type="button" onClick={() => { const receiptWindow = window.open('', '_blank'); if (receiptWindow) writeReceipt(receiptWindow, order); else toast.warning('Permite las ventanas emergentes para abrir el recibo.'); }}><FaPrint aria-hidden="true" /> Imprimir recibo</button></> : isAdmin ? <button className="replenishment-receive-button" type="button" onClick={() => openReceipt(order)} disabled={!shiftOpen}><FaTruck aria-hidden="true" /> Registrar recepción</button> : <p className="replenishment-meta">Pendiente de recepción por un administrador.</p>}
+				{order.estado === 'recibido' ? <><p className="replenishment-meta">Recibió {order.recibidoPor} · {timestampLabel(order.recibidoEn)} · Pagado {money(order.montoPagado)}</p>{order.faltantes?.length > 0 && <p className="replenishment-shortage">Faltó: {order.faltantes.map((line) => `${line.productoNombre}${line.sabor ? ` (${line.sabor})` : ''}, ${line.cantidadSolicitada - line.cantidadRecibida} ${supplyLabel(line.modoAbastecimiento, line.cantidadSolicitada - line.cantidadRecibida)}`).join('; ')}.</p>}<button className="replenishment-receive-button" type="button" onClick={() => { const receiptWindow = window.open('', '_blank'); if (receiptWindow) writeReceipt(receiptWindow, order); else toast.warning('Permite las ventanas emergentes para abrir el recibo.'); }}><FaPrint aria-hidden="true" /> Imprimir recibo</button></> : canReceiveReplenishment ? <button className="replenishment-receive-button" type="button" onClick={() => openReceipt(order)} disabled={!shiftOpen}><FaTruck aria-hidden="true" /> Registrar recepción</button> : <p className="replenishment-meta">Pendiente de recepción.</p>}
 			</article>)}
 		</div>}
 		{mode && <div className="inventory-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && closeModal()}><section className="inventory-modal replenishment-modal" role="dialog" aria-modal="true" aria-labelledby="replenishment-modal-title">

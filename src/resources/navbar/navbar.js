@@ -3,6 +3,7 @@ import { FaAddressBook, FaBoxOpen, FaCashRegister, FaChair, FaCoffee, FaCreditCa
 import { signOut } from 'firebase/auth';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../server/api';
+import { getLowStockItems } from '../../components/inventario/stock';
 import toast from '../toast/toast';
 
 function CoffeeIcon() {
@@ -38,21 +39,38 @@ function NavigationIcon({ type }) {
 	return <Icon className="sidebar-link-icon" aria-hidden="true" />;
 }
 
+function toDate(value) {
+	return value?.toDate ? value.toDate() : value ? new Date(value) : null;
+}
+
 function Navbar({ profile, activeSection, onSelect }) {
 	const [isOpen, setIsOpen] = useState(false);
-	const [todayInvoiceCount, setTodayInvoiceCount] = useState(0);
+	const [invoices, setInvoices] = useState([]);
+	const [lowStockCount, setLowStockCount] = useState(0);
 	const adminOnlySections = ['Inventario', 'Empleados', 'Métodos de pago'];
 	const visibleNavigationItems = navigationItems.filter((item) => !adminOnlySections.includes(item.id) || profile?.rol === 'admin');
+	const readAt = toDate(profile?.facturasLeidasEn);
+	const today = new Date();
+	const todayInvoiceCount = invoices.filter((invoice) => {
+		const date = toDate(invoice.pagadoEn);
+		const isToday = date && date.getFullYear() === today.getFullYear()
+			&& date.getMonth() === today.getMonth()
+			&& date.getDate() === today.getDate();
+		return isToday && (!readAt || date > readAt);
+	}).length;
 
-	useEffect(() => onSnapshot(collection(db, 'facturas'), (snapshot) => {
-		const now = new Date();
-		const today = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
-		setTodayInvoiceCount(snapshot.docs.filter((item) => {
-			const timestamp = item.data().pagadoEn;
-			const date = timestamp?.toDate ? timestamp.toDate() : null;
-			return date && `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}` === today;
-		}).length);
-	}), []);
+	useEffect(() => {
+		const unsubscribeInvoices = onSnapshot(collection(db, 'facturas'), (snapshot) => {
+			setInvoices(snapshot.docs.map((item) => item.data()));
+		}, () => toast.error('No se pudieron cargar las notificaciones de facturas.'));
+		const unsubscribeInventory = onSnapshot(collection(db, 'inventario'), (snapshot) => {
+			setLowStockCount(getLowStockItems(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))).length);
+		}, () => toast.error('No se pudieron cargar las notificaciones de inventario.'));
+		return () => {
+			unsubscribeInvoices();
+			unsubscribeInventory();
+		};
+	}, []);
 
 	function closeNavbar() {
 		setIsOpen(false);
@@ -119,7 +137,8 @@ function Navbar({ profile, activeSection, onSelect }) {
 						>
 							<NavigationIcon type={item.icon} />
 							<span>{item.label}</span>
-							{item.id === 'Facturas' && todayInvoiceCount > 0 && <small className="sidebar-link-badge" title={`${todayInvoiceCount} facturas hoy`}>{todayInvoiceCount}</small>}
+							{item.id === 'Facturas' && activeSection !== 'Facturas' && todayInvoiceCount > 0 && <small className="sidebar-link-badge" title={`${todayInvoiceCount} facturas sin leer`}>{todayInvoiceCount}</small>}
+							{item.id === 'Inventario' && lowStockCount > 0 && <small className="sidebar-link-badge" title={`${lowStockCount} productos o sabores con stock bajo`}>{lowStockCount}</small>}
 						</button>
 					))}
 				</nav>

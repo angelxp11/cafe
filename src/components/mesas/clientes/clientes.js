@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { addDoc, collection, doc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { FaEdit, FaPlus, FaUserFriends } from 'react-icons/fa';
+import { addDoc, collection, deleteDoc, doc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
+import { FaEdit, FaPlus, FaTrash, FaUserFriends } from 'react-icons/fa';
 import { auth, db } from '../../../server/api';
 import LoadingScreen from '../../../resources/loading/LoadingScreen';
 import toast from '../../../resources/toast/toast';
@@ -22,6 +22,7 @@ function Clientes({ profile }) {
 	const [name, setName] = useState('');
 	const [phone, setPhone] = useState('');
 	const [selectedClient, setSelectedClient] = useState(null);
+	const isAdmin = profile?.rol === 'admin';
 
 	useEffect(() => {
 		const stopClients = onSnapshot(collection(db, 'clientes'), (snapshot) => {
@@ -81,6 +82,25 @@ function Clientes({ profile }) {
 		}
 	}
 
+	async function deleteClient(client) {
+		if (!isAdmin) return;
+		try {
+			const accounts = await getDocs(query(collection(db, 'cuentasCliente'), where('clienteId', '==', client.id)));
+			if (accounts.docs.some((account) => {
+				const balance = Number(account.data().saldoPendiente);
+				return !Number.isFinite(balance) || balance > 0;
+			})) {
+				toast.warning('No se puede eliminar este cliente porque tiene cuentas pendientes.');
+				return;
+			}
+			if (!window.confirm(`¿Eliminar a ${client.nombre}? Sus facturas e historial de cuentas pagadas se conservarán.`)) return;
+			await deleteDoc(doc(db, 'clientes', client.id));
+			toast.success('Cliente eliminado. El historial de cuentas y facturas se conservó.');
+		} catch (error) {
+			toast.error('No se pudo eliminar el cliente.');
+		}
+	}
+
 	if (loading) return <LoadingScreen text="Cargando clientes" />;
 
 	if (selectedClient) {
@@ -101,7 +121,10 @@ function Clientes({ profile }) {
 					const balance = accounts.reduce((sum, account) => sum + Number(account.saldoPendiente || 0), 0);
 					return <article className="customer-row" key={client.id}>
 						<button className="customer-open" type="button" onClick={() => setSelectedClient(client)}><span className="customer-name">{client.nombre}</span><span className="customer-phone">{client.telefono}</span><span className="customer-account-count">{accounts.length} {accounts.length === 1 ? 'cuenta pendiente' : 'cuentas pendientes'}</span><strong>{formatMoney(balance)}</strong></button>
-						<button className="customer-edit-button" type="button" aria-label={`Editar ${client.nombre}`} onClick={() => openEdit(client)}><FaEdit /></button>
+						<div className="customer-actions">
+							<button className="customer-edit-button" type="button" aria-label={`Editar ${client.nombre}`} onClick={() => openEdit(client)}><FaEdit /></button>
+							{isAdmin && <button className="customer-delete-button" type="button" aria-label={`Eliminar ${client.nombre}`} onClick={() => deleteClient(client)}><FaTrash /></button>}
+						</div>
 					</article>;
 				})}
 			</div>}

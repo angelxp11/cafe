@@ -64,6 +64,16 @@ function Facturas({ profile }) {
 	const canCancelInvoices = ['admin', 'empleado'].includes(profile?.rol);
 
 	useEffect(() => {
+		const email = (auth.currentUser?.email || profile?.correo || '').trim().toLowerCase();
+		if (!email) {
+			toast.error('No se pudo marcar la notificación de facturas como leída.');
+			return;
+		}
+		updateDoc(doc(db, 'usuarios', email), { facturasLeidasEn: serverTimestamp() })
+			.catch(() => toast.error('No se pudo marcar la notificación de facturas como leída.'));
+	}, [profile?.correo]);
+
+	useEffect(() => {
 		const stopInvoices = onSnapshot(collection(db, 'facturas'), (snapshot) => {
 			setInvoices(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).sort((first, second) => (toDate(second.pagadoEn)?.getTime() || 0) - (toDate(first.pagadoEn)?.getTime() || 0)));
 			setLoading(false);

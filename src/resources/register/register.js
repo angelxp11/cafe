@@ -35,22 +35,25 @@ function Register({ onLogin }) {
 		setLoading(true);
 		try {
 			const normalizedEmail = email.trim().toLowerCase();
-			await createUserWithEmailAndPassword(auth, normalizedEmail, password);
-			await setDoc(doc(db, 'usuarios', normalizedEmail), {
-				nombre: firstName.trim().toLocaleUpperCase('es-ES'),
-				apellido: lastName.trim().toLocaleUpperCase('es-ES'),
-				correo: normalizedEmail,
-				rol: 'empleado',
-				activo: false,
-			});
+			const credential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+			try {
+				await setDoc(doc(db, 'usuarios', normalizedEmail), {
+					nombre: firstName.trim().toLocaleUpperCase('es-ES'),
+					apellido: lastName.trim().toLocaleUpperCase('es-ES'),
+					correo: normalizedEmail,
+					rol: 'empleado',
+					activo: false,
+				});
+			} catch (error) {
+				try {
+					await deleteUser(credential.user);
+				} catch (deleteError) {
+					toast.error('No se pudo guardar el perfil ni eliminar la cuenta incompleta. Contacta al administrador.');
+				}
+				throw error;
+			}
 			toast.success('Cuenta creada correctamente.');
 		} catch (error) {
-			if (auth.currentUser && error.code !== 'auth/email-already-in-use') {
-				try {
-					await deleteUser(auth.currentUser);
-				} catch (deleteError) {
-				}
-			}
 			setLoading(false);
 			toast.error(getRegisterMessage(error));
 		}
@@ -112,6 +115,10 @@ function getPasswordStrength(password) {
 function getRegisterMessage(error) {
 	if (error.code === 'auth/email-already-in-use') return 'Ese correo ya tiene una cuenta.';
 	if (error.code === 'auth/invalid-email') return 'Escribe un correo electrónico válido.';
+	if (error.code === 'auth/operation-not-allowed') return 'El registro por correo y contraseña no está habilitado en Firebase.';
+	if (error.code === 'auth/weak-password') return 'La contraseña no cumple con los requisitos de Firebase.';
+	if (error.code === 'auth/network-request-failed') return 'No se pudo conectar con Firebase. Revisa tu conexión e inténtalo de nuevo.';
+	if (error.code === 'permission-denied') return 'Firebase no permitió guardar el perfil del usuario. Revisa las reglas de Firestore.';
 	return 'No se pudo crear la cuenta. Inténtalo de nuevo.';
 }
 

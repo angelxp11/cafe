@@ -7,19 +7,25 @@ service cloud.firestore {
         && request.auth.token.email == correo
         && request.resource.data.correo == correo
         && request.resource.data.rol == 'empleado'
-        && request.resource.data.activo == true
+        && request.resource.data.activo == false
         && request.resource.data.nombre is string
         && request.resource.data.apellido is string;
       allow read: if request.auth != null
         && (request.auth.token.email == correo || get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin');
       allow update: if request.auth != null
+        && ((get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin'
+          && ((request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activo'])
+              && request.resource.data.activo is bool)
+            || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rol'])
+              && correo != request.auth.token.email
+              && request.resource.data.rol in ['admin', 'empleado'])))
+          || (correo == request.auth.token.email
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['facturasLeidasEn'])
+            && request.resource.data.facturasLeidasEn is timestamp));
+      allow delete: if request.auth != null
         && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin'
-        && ((request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activo'])
-            && request.resource.data.activo is bool)
-          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rol'])
-            && correo != request.auth.token.email
-            && request.resource.data.rol in ['admin', 'empleado']));
-      allow delete: if false;
+        && correo != request.auth.token.email
+        && resource.data.rol == 'empleado';
     }
 
     match /pisos/{pisoId} {
@@ -304,7 +310,8 @@ service cloud.firestore {
         && request.resource.data.nombre.size() > 0
         && request.resource.data.telefono is string
         && request.resource.data.telefono.size() > 0;
-      allow delete: if false;
+      allow delete: if request.auth != null
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin';
     }
 
     match /cuentasCliente/{cuentaId} {

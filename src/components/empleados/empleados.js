@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, updateDoc, doc } from 'firebase/firestore';
-import { FaUserCheck, FaUserSlash } from 'react-icons/fa';
+import { collection, onSnapshot, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { FaTrash, FaUserCheck, FaUserSlash } from 'react-icons/fa';
 import { db } from '../../server/api';
 import toast from '../../resources/toast/toast';
 import LoadingScreen from '../../resources/loading/LoadingScreen';
@@ -61,6 +61,21 @@ function Empleados({ profile }) {
 		}
 	}
 
+	async function deleteEmployee(user) {
+		if (user.rol !== 'empleado' || user.id === profile.correo) return;
+		if (!window.confirm(`¿Eliminar permanentemente a ${user.nombre} ${user.apellido} de la base de datos?`)) return;
+		setLoadingMessage('Eliminando empleado');
+		setLoading(true);
+		try {
+			await deleteDoc(doc(db, 'usuarios', user.id));
+			toast.success('Empleado eliminado de la base de datos.');
+		} catch (error) {
+			toast.error('No se pudo eliminar el empleado. Comprueba que tienes permisos de administrador e inténtalo de nuevo.');
+		} finally {
+			setLoading(false);
+		}
+	}
+
 	if (profile?.rol !== 'admin') {
 		return (
 			<section className="employees-access-denied" aria-labelledby="employees-denied-title">
@@ -82,7 +97,7 @@ function Empleados({ profile }) {
 			</header>
 			<div className="employees-table-wrapper">
 					<table className="employees-table">
-						<thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead>
+						<thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead>
 						<tbody>
 							{users.map((user) => {
 								const isActive = user.activo !== false;
@@ -101,7 +116,10 @@ function Empleados({ profile }) {
 										</select>
 									</td>
 									<td><span className={`employee-status ${isActive ? 'employee-status-active' : 'employee-status-inactive'}`}>{isActive ? 'Activo' : 'Desactivado'}</span></td>
-									<td><button className="employee-status-button" type="button" onClick={() => toggleUserStatus(user)}>{isActive ? <FaUserSlash /> : <FaUserCheck />}<span>{isActive ? 'Desactivar' : 'Activar'}</span></button></td>
+									<td className="employee-actions">
+										<button className="employee-status-button" type="button" onClick={() => toggleUserStatus(user)}>{isActive ? <FaUserSlash /> : <FaUserCheck />}<span>{isActive ? 'Desactivar' : 'Activar'}</span></button>
+										{user.rol === 'empleado' && user.id !== profile.correo && <button className="employee-delete-button" type="button" aria-label={`Eliminar ${user.nombre} ${user.apellido}`} onClick={() => deleteEmployee(user)}><FaTrash /><span>Eliminar</span></button>}
+									</td>
 								</tr>;
 							})}
 						</tbody>

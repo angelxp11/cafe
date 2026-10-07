@@ -4,11 +4,12 @@ import { FaDownload, FaEdit, FaPlus, FaTrash } from 'react-icons/fa';
 import { db } from '../../server/api';
 import LoadingScreen from '../../resources/loading/LoadingScreen';
 import toast from '../../resources/toast/toast';
+import { getLowStockItems } from './stock';
 import './inventario.css';
 
 const emptyProduct = {
 	identificador: '', categoria: '', nombre: '', venta: 'unidad', unidadesPorPaquete: '', unidadesPorPaqueteAbastecimiento: '',
-	precioUnidad: '', precioPaquete: '', abastecimiento: 'unidad', mayoreo: '', stock: '10', tipo: 'final', ingredientes: [],
+	precioUnidad: '', precioPaquete: '', abastecimiento: 'unidad', mayoreo: '', stock: '10', stockMinimo: '5', tipo: 'final', ingredientes: [],
 	modoSabores: 'general', sabores: [],
 };
 
@@ -47,11 +48,27 @@ function Inventario({ profile }) {
 	const [searchTerm, setSearchTerm] = useState('');
 	const [selectedCategory, setSelectedCategory] = useState('Todas');
 	const isAdmin = profile?.rol === 'admin';
-	const filteredProducts = products.filter((product) => {
+	const lowStockItems = getLowStockItems(products);
+	const lowStockProductIds = new Set(lowStockItems.map((item) => item.productId));
+	const lowestStockByProduct = new Map();
+	lowStockItems.forEach((item) => {
+		const currentLowest = lowestStockByProduct.get(item.productId);
+		if (currentLowest === undefined || item.stock < currentLowest) lowestStockByProduct.set(item.productId, item.stock);
+	});
+	const sortedProducts = [...products].sort((first, second) => {
+		const firstStock = lowestStockByProduct.get(first.id);
+		const secondStock = lowestStockByProduct.get(second.id);
+		if (firstStock === undefined) return secondStock === undefined ? 0 : 1;
+		if (secondStock === undefined) return -1;
+		return firstStock - secondStock;
+	});
+	const filteredProducts = sortedProducts.filter((product) => {
 		const matchesName = product.nombre?.toLocaleLowerCase('es-ES').includes(searchTerm.trim().toLocaleLowerCase('es-ES'));
 		const matchesCategory = selectedCategory === 'Todas' || product.categoria === selectedCategory;
 		return matchesName && matchesCategory;
 	});
+	const filteredProductIds = new Set(filteredProducts.map((product) => product.id));
+	const filteredLowStockItems = lowStockItems.filter((item) => filteredProductIds.has(item.productId));
 
 	useEffect(() => {
 		const unsubscribe = onSnapshot(collection(db, 'inventario'), (snapshot) => {
@@ -156,10 +173,17 @@ function Inventario({ profile }) {
 				<label className="inventory-category-field" htmlFor="inventory-category-filter">Filtrar por categoría<select id="inventory-category-filter" value={selectedCategory} onChange={(event) => setSelectedCategory(event.target.value)}><option value="Todas">Todas</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
 				{(searchTerm || selectedCategory !== 'Todas') && <button className="inventory-clear-filters" type="button" onClick={() => { setSearchTerm(''); setSelectedCategory('Todas'); }}>Limpiar filtros</button>}
 			</div>
+			{filteredLowStockItems.length > 0 && <section className="inventory-low-stock" aria-label="Productos con stock bajo">
+				<h2>Stock bajo <span>{filteredLowStockItems.length}</span></h2>
+				<ul>{filteredLowStockItems.map((item) => <li key={`${item.productId}-${item.flavorName || 'general'}`}>
+					<strong>{item.productName}</strong>{item.flavorName && ` — ${item.flavorName}`}
+					<span>{item.stock} en stock (umbral: {item.threshold})</span>
+				</li>)}</ul>
+			</section>}
 			{products.length === 0 ? <div className="inventory-empty"><h2>No hay productos</h2><p>Agrega el primer producto al inventario.</p></div> : filteredProducts.length === 0 ? <div className="inventory-empty"><h2>Sin resultados</h2><p>No hay productos que coincidan con los filtros.</p></div> : (
 				<div className="inventory-table-wrapper"><table className="inventory-table">
 					<thead><tr><th>Identificador</th><th>Producto</th><th>Categoría</th><th>Sabores</th><th>Venta</th><th>Precio unidad</th><th>Abastecimiento</th><th>Stock</th><th>Tipo</th>{isAdmin && <th>Acciones</th>}</tr></thead>
-					<tbody>{filteredProducts.map((product) => <tr key={product.id}>
+					<tbody>{filteredProducts.map((product) => <tr key={product.id} className={lowStockProductIds.has(product.id) ? 'inventory-row-low-stock' : undefined}>
 						<td>{product.identificador}</td><td><strong>{product.nombre}</strong>{product.tipo === 'preparable' && <small> {product.ingredientes?.length || 0} ingredientes</small>}</td><td>{product.categoria}</td><td>{product.modoSabores === 'sabores' ? product.sabores?.map((flavor) => typeof flavor === 'string' ? flavor : `${flavor.nombre} (${flavor.stock})`).join(', ') : 'GENERAL'}</td><td>{product.venta}</td><td>${formatPrice(product.precioUnidad)}</td><td>{product.abastecimiento}{product.unidadesMayoreo ? ` (${product.unidadesMayoreo})` : ''}</td><td>{product.modoSabores === 'sabores' ? product.sabores?.map((flavor) => typeof flavor === 'string' ? `${flavor}: -` : `${flavor.nombre}: ${flavor.stock}`).join(', ') : product.stock}</td><td>{product.tipo === 'preparable' ? 'Preparar' : 'Final'}</td>
 						{isAdmin && <td className="inventory-actions"><button type="button" aria-label={`Editar ${product.nombre}`} onClick={() => openEdit(product)}><FaEdit /></button><button type="button" aria-label={`Eliminar ${product.nombre}`} onClick={() => removeProduct(product)}><FaTrash /></button></td>}
 					</tr>)}</tbody>
@@ -171,7 +195,7 @@ function Inventario({ profile }) {
 }
 
 function ProductModal({ product, categories, onClose }) {
-	const [form, setForm] = useState(product ? { ...emptyProduct, ...product, sabores: normalizeFlavors(product.sabores) } : emptyProduct);
+	const [form, setForm] = useState(product ? { ...emptyProduct, ...product, stockMinimo: product.stockMinimo ?? emptyProduct.stockMinimo, sabores: normalizeFlavors(product.sabores) } : emptyProduct);
 	const [saving, setSaving] = useState(false);
 	const isEditing = Boolean(product && !product.isNew);
 	const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
@@ -195,7 +219,9 @@ function ProductModal({ product, categories, onClose }) {
 			const unitsPerPackage = form.venta === 'paquete' ? Number(form.unidadesPorPaquete) || 0 : 0;
 			const supplyPackageUnits = form.abastecimiento === 'paquete' ? Number(form.unidadesPorPaqueteAbastecimiento || form.unidadesPorPaquete) || 0 : 0;
 			const packagePrice = form.venta === 'paquete' ? Number(form.precioPaquete) || 0 : 0;
-			const data = { identificador: identifier, nombre: form.nombre.trim().toLocaleUpperCase('es-ES'), categoria: category, modoSabores: form.modoSabores, sabores: form.modoSabores === 'sabores' ? form.sabores.filter((flavor) => flavor.nombre.trim()).map((flavor) => ({ nombre: flavor.nombre.trim().toLocaleUpperCase('es-ES'), stock: Number(flavor.stock) || 0 })) : [], venta: form.venta, precioUnidad: form.venta === 'paquete' && unitsPerPackage ? packagePrice / unitsPerPackage : Number(form.precioUnidad) || 0, precioPaquete: packagePrice, unidadesPorPaquete: unitsPerPackage, unidadesPorPaqueteAbastecimiento: supplyPackageUnits, abastecimiento: form.abastecimiento, unidadesMayoreo: form.abastecimiento === 'mayoreo' ? Number(form.mayoreo) || 0 : 0, stock: form.modoSabores === 'sabores' ? 0 : Number(form.stock) || 0, tipo: form.tipo, ingredientes: form.tipo === 'preparable' ? form.ingredientes.map((item) => ({ nombre: item.nombre.trim().toLocaleUpperCase('es-ES'), medida: item.medida.trim() })) : [] };
+			const stockThreshold = Number(form.stockMinimo);
+			if (form.stockMinimo === '' || !Number.isFinite(stockThreshold) || stockThreshold < 0) { toast.warning('Indica un umbral de notificación de stock válido.'); return; }
+			const data = { identificador: identifier, nombre: form.nombre.trim().toLocaleUpperCase('es-ES'), categoria: category, modoSabores: form.modoSabores, sabores: form.modoSabores === 'sabores' ? form.sabores.filter((flavor) => flavor.nombre.trim()).map((flavor) => ({ nombre: flavor.nombre.trim().toLocaleUpperCase('es-ES'), stock: Number(flavor.stock) || 0 })) : [], venta: form.venta, precioUnidad: form.venta === 'paquete' && unitsPerPackage ? packagePrice / unitsPerPackage : Number(form.precioUnidad) || 0, precioPaquete: packagePrice, unidadesPorPaquete: unitsPerPackage, unidadesPorPaqueteAbastecimiento: supplyPackageUnits, abastecimiento: form.abastecimiento, unidadesMayoreo: form.abastecimiento === 'mayoreo' ? Number(form.mayoreo) || 0 : 0, stock: form.modoSabores === 'sabores' ? 0 : Number(form.stock) || 0, stockMinimo: stockThreshold, tipo: form.tipo, ingredientes: form.tipo === 'preparable' ? form.ingredientes.map((item) => ({ nombre: item.nombre.trim().toLocaleUpperCase('es-ES'), medida: item.medida.trim() })) : [] };
 			await setDoc(doc(db, 'inventario', identifier), data);
 			await setDoc(doc(db, 'categorias', category), { nombre: category }, { merge: true });
 			toast.success(`Producto ${isEditing ? 'actualizado' : 'creado'}.`);
@@ -213,7 +239,7 @@ function ProductModal({ product, categories, onClose }) {
 			<fieldset><legend>Sabores</legend><label className="inventory-radio"><input type="radio" checked={form.modoSabores === 'general'} onChange={() => update('modoSabores', 'general')} /> Producto general</label><label className="inventory-radio"><input type="radio" checked={form.modoSabores === 'sabores'} onChange={() => { update('modoSabores', 'sabores'); if (!(form.sabores || []).length) addFlavor(); }} /> Producto de sabores</label>{form.modoSabores === 'sabores' && <div className="flavor-list">{(form.sabores || []).map((flavor, index) => <div className="flavor-row" key={index}><input aria-label="Sabor" placeholder="Ej. VAINILLA" value={flavor.nombre} onChange={(event) => updateFlavor(index, 'nombre', event.target.value)} /><input aria-label="Stock del sabor" type="text" inputMode="numeric" pattern="[0-9]*" placeholder="Stock" value={flavor.stock} onChange={(event) => updateFlavor(index, 'stock', getPriceDigits(event.target.value))} /><button type="button" aria-label="Eliminar sabor" onClick={() => removeFlavor(index)}>×</button></div>)}<button className="add-ingredient" type="button" onClick={addFlavor}>+ Añadir sabor</button></div>}</fieldset>
 			<div className="inventory-form-grid"><label>Forma de venta<select value={form.venta} onChange={(event) => update('venta', event.target.value)}><option value="unidad">Por unidad</option><option value="paquete">Por paquete</option></select></label>{form.venta === 'paquete' && <label>Unidades por paquete<input type="text" inputMode="numeric" pattern="[0-9]*" value={form.unidadesPorPaquete} onChange={(event) => update('unidadesPorPaquete', getPriceDigits(event.target.value))} /></label>}</div>
 			<div className="inventory-form-grid"><label>Abastecimiento<select value={form.abastecimiento} onChange={(event) => update('abastecimiento', event.target.value)}><option value="unidad">Por unidad</option><option value="paquete">Por paquete</option><option value="mayoreo">Por mayoreo</option></select></label>{form.abastecimiento === 'paquete' && <label>Unidades por paquete de abastecimiento<input type="text" inputMode="numeric" pattern="[0-9]*" value={form.unidadesPorPaqueteAbastecimiento || form.unidadesPorPaquete} onChange={(event) => update('unidadesPorPaqueteAbastecimiento', getPriceDigits(event.target.value))} /></label>}{form.abastecimiento === 'mayoreo' && <label>Unidades por mayoreo<input type="text" inputMode="numeric" pattern="[0-9]*" value={form.mayoreo} onChange={(event) => update('mayoreo', getPriceDigits(event.target.value))} /></label>}</div>
-			{form.modoSabores === 'general' && <label>Stock<input type="text" inputMode="numeric" pattern="[0-9]*" value={form.stock} onChange={(event) => update('stock', getPriceDigits(event.target.value))} /></label>}
+			<div className="inventory-form-grid">{form.modoSabores === 'general' && <label>Stock<input type="text" inputMode="numeric" pattern="[0-9]*" value={form.stock} onChange={(event) => update('stock', getPriceDigits(event.target.value))} /></label>}<label>Notificar stock cuando sea igual o menor a<input type="text" inputMode="numeric" pattern="[0-9]*" required value={form.stockMinimo} onChange={(event) => update('stockMinimo', getPriceDigits(event.target.value))} /><small>Se aplica al stock general y a cada sabor.</small></label></div>
 			<fieldset><legend>Tipo de producto</legend><label className="inventory-radio"><input type="radio" checked={form.tipo === 'final'} onChange={() => update('tipo', 'final')} /> Producto final</label><label className="inventory-radio"><input type="radio" checked={form.tipo === 'preparable'} onChange={() => update('tipo', 'preparable')} /> Se debe preparar</label></fieldset>
 			{form.tipo === 'preparable' && <fieldset><legend>Ingredientes y medidas</legend>{form.ingredientes.map((item, index) => <div className="ingredient-row" key={index}><input aria-label="Ingrediente" placeholder="Ingrediente" value={item.nombre} onChange={(event) => updateIngredient(index, 'nombre', event.target.value.toLocaleUpperCase('es-ES'))} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} /><input aria-label="Medida" placeholder="Ej. 20 ml" value={item.medida} onChange={(event) => updateIngredient(index, 'medida', event.target.value)} /><button type="button" aria-label="Eliminar ingrediente" onClick={() => removeIngredient(index)}>×</button></div>)}<button className="add-ingredient" type="button" onClick={addIngredient}>+ Añadir ingrediente</button></fieldset>}
 			<button className="auth-submit" type="submit" disabled={saving}>{saving ? 'Guardando...' : 'Guardar producto'}</button>

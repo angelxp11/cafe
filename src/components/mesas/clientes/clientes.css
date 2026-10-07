@@ -93,7 +93,7 @@
 
 .customer-row {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) 38px;
+	grid-template-columns: minmax(0, 1fr) auto;
 	align-items: center;
 	gap: 8px;
 	padding: 13px 3px;
@@ -130,7 +130,13 @@
 	color: var(--color-total);
 }
 
-.customer-edit-button {
+.customer-actions {
+	display: flex;
+	gap: 6px;
+}
+
+.customer-edit-button,
+.customer-delete-button {
 	display: grid;
 	width: 36px;
 	height: 36px;
@@ -142,7 +148,13 @@
 	cursor: pointer;
 }
 
-.customer-edit-button:hover {
+.customer-delete-button {
+	border-color: var(--color-error);
+	color: var(--color-error);
+}
+
+.customer-edit-button:hover,
+.customer-delete-button:hover {
 	background: var(--color-hover);
 }
 

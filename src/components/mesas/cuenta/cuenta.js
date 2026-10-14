@@ -277,7 +277,7 @@ function Cuenta({ table, profile, onClose }) {
 			const currentUser = auth.currentUser;
 			const profileSnapshot = currentUser?.email ? await transaction.get(doc(db, 'usuarios', currentUser.email.trim().toLowerCase())) : null;
 			const profileData = profileSnapshot?.exists() ? profileSnapshot.data() : {};
-			const paymentActor = [profileData.nombre, profileData.apellido].filter(Boolean).join(' ') || currentUser?.email || 'Usuario';
+			const paymentActor = [profileData.nombre, profileData.apellido].filter(Boolean).join(' ') || currentUser?.displayName || currentUser?.email || 'Usuario';
 			const inventoryIds = [...new Set(paidOrder.map((item) => item.id).filter(Boolean))];
 			const inventorySnapshots = await Promise.all(inventoryIds.map((productId) => transaction.get(doc(db, 'inventario', productId))));
 			const inventoryProducts = new Map(inventorySnapshots.filter((snapshot) => snapshot.exists()).map((snapshot) => [snapshot.id, { reference: doc(db, 'inventario', snapshot.id), data: snapshot.data() }]));
@@ -355,6 +355,8 @@ function Cuenta({ table, profile, onClose }) {
 				cambio: paymentDetails.change || 0,
 				denominaciones: paymentDetails.denominations || [],
 				...(activeShiftId ? { turnoId: activeShiftId } : {}),
+				registradaPor: paymentActor,
+				registradaPorCorreo: currentUser?.email || '',
 				pagadoEn: serverTimestamp(),
 			});
 			const invoiceMethods = paymentAllocations.map((allocation) => {

@@ -119,7 +119,8 @@ function Caja({ total, table, items, onClose, onPaid, allowSplit = true }) {
 			const received = paymentDenominations.reduce((sum, value) => sum + value, 0);
 			await onPaid(method, { denominations: paymentDenominations, received, change: useAdditionalMethod ? 0 : cashChange }, null, allocations);
 		} catch (error) {
-			toast.error('No se pudo registrar el pago.');
+			console.error('No se pudo registrar el pago de la mesa.', error);
+			toast.error(error.message || 'No se pudo registrar el pago.');
 			setPaying(false);
 		}
 	}
@@ -135,7 +136,8 @@ function Caja({ total, table, items, onClose, onPaid, allowSplit = true }) {
 			await onPaid(method, paymentDetails, selectedItems, allocations);
 			setSplitOpen(false);
 		} catch (error) {
-			toast.error('No se pudo registrar la factura parcial.');
+			console.error('No se pudo registrar la factura parcial.', error);
+			toast.error(error.message || 'No se pudo registrar la factura parcial.');
 		} finally {
 			setSplitPaying(false);
 		}

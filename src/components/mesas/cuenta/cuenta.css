@@ -421,6 +421,7 @@
 }
 
 .account-product {
+	position: relative;
 	display: grid;
 	gap: 12px;
 	min-height: 92px;
@@ -435,11 +436,47 @@
 	transition: border-color 0.2s ease, transform 0.2s ease;
 }
 
+.account-product:disabled {
+	cursor: not-allowed;
+}
+
 .account-product:hover,
 .account-product:focus-visible {
 	border-color: var(--color-secondary);
 	outline: none;
 	transform: translateY(-2px);
+}
+
+.account-product-out-of-stock,
+.account-product-out-of-stock:hover,
+.account-product-out-of-stock:focus-visible {
+	border-color: #d88982;
+	background: #ffa39d;
+	color: #792f2a;
+}
+
+.account-product-stock {
+	position: absolute;
+	z-index: 1;
+	right: 8px;
+	bottom: 8px;
+	left: 8px;
+	padding: 8px;
+	border-radius: 5px;
+	background: rgb(38 31 28 / 94%);
+	color: #fff;
+	font-size: var(--font-size-xs);
+	line-height: 1.4;
+	opacity: 0;
+	pointer-events: none;
+	transform: translateY(4px);
+	transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.account-product:hover .account-product-stock,
+.account-product:focus-visible .account-product-stock {
+	opacity: 1;
+	transform: translateY(0);
 }
 
 .account-product-added {

@@ -1,7 +1,7 @@
 import "./cuenta.css";
 
 import { useEffect, useMemo, useState } from 'react';
-import { collection, deleteField, doc, getDocs, onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, deleteField, doc, onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { FaBeer, FaCheck, FaCoffee, FaCookieBite, FaGlassWhiskey, FaMinus, FaPlus, FaShoppingCart, FaTag, FaTimes, FaUtensils, FaUserFriends } from 'react-icons/fa';
 import { auth, db } from '../../../server/api';
 import { shiftBalance } from '../../../server/paymentMethods';
@@ -16,6 +16,25 @@ function cleanDescription(value) {
 
 function countDenominations(values) {
 	return [...new Set(values)].map((value) => ({ valor: value, cantidad: values.filter((item) => item === value).length }));
+}
+
+function getProductStock(product) {
+	const stockItems = product.modoSabores === 'sabores'
+		? (product.sabores || []).map((flavor) => ({
+			name: typeof flavor === 'string' ? flavor : flavor.nombre,
+			stock: typeof flavor === 'string' ? 0 : flavor.stock,
+		}))
+		: [{ name: '', stock: product.stock }];
+	const details = stockItems.map(({ name, stock }) => {
+		const quantity = Number(stock);
+		const available = Number.isFinite(quantity) ? Math.max(0, quantity) : 0;
+		return { name, available };
+	});
+
+	return {
+		total: details.reduce((sum, item) => sum + item.available, 0),
+		label: details.map(({ name, available }) => `${name ? `${name}: ` : 'Stock: '}${available.toLocaleString('es-CO')}`).join(' · ') || 'Stock: 0',
+	};
 }
 
 function Cuenta({ table, profile, onClose }) {
@@ -60,18 +79,13 @@ function Cuenta({ table, profile, onClose }) {
 	}), []);
 
 	useEffect(() => {
-		async function loadProducts() {
-			try {
-				const snapshot = await getDocs(collection(db, 'inventario'));
-				setProducts(snapshot.docs.map((product) => ({ id: product.id, ...product.data() })));
-			} catch (error) {
-				toast.error('No se pudieron cargar los productos.');
-			} finally {
-				setLoading(false);
-			}
-		}
-
-		loadProducts();
+		return onSnapshot(collection(db, 'inventario'), (snapshot) => {
+			setProducts(snapshot.docs.map((product) => ({ id: product.id, ...product.data() })));
+			setLoading(false);
+		}, () => {
+			toast.error('No se pudieron cargar los productos.');
+			setLoading(false);
+		});
 	}, []);
 
 	const categories = useMemo(() => [...new Set(products.map((product) => product.categoria).filter(Boolean))], [products]);
@@ -440,7 +454,11 @@ function Cuenta({ table, profile, onClose }) {
 							</nav>
 			<select className="account-category-select" aria-label="Categoría de productos" value={activeCategory} onChange={(event) => setSelectedCategory(event.target.value)}>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select>
 							<div className="account-product-list">
-								{visibleProducts.length === 0 ? <p className="account-empty">No hay productos disponibles.</p> : visibleProducts.map((product) => <button className={`account-product${animatedProductId === product.id ? ' account-product-added' : ''}`} type="button" key={product.id} onClick={() => addProduct(product)}><span>{product.nombre}</span><strong>${Number(product.precioUnidad || 0).toLocaleString('es-CO')}</strong></button>)}
+								{visibleProducts.length === 0 ? <p className="account-empty">No hay productos disponibles.</p> : visibleProducts.map((product) => {
+									const stock = getProductStock(product);
+									const isOutOfStock = stock.total === 0;
+									return <button className={`account-product${isOutOfStock ? ' account-product-out-of-stock' : ''}${animatedProductId === product.id ? ' account-product-added' : ''}`} type="button" key={product.id} onClick={() => addProduct(product)} disabled={isOutOfStock} title={stock.label} aria-label={`${product.nombre}, $${Number(product.precioUnidad || 0).toLocaleString('es-CO')}, ${stock.label}`}><span>{product.nombre}</span><strong>${Number(product.precioUnidad || 0).toLocaleString('es-CO')}</strong><span className="account-product-stock" aria-hidden="true">{stock.label}</span></button>;
+								})}
 							</div>
 						</div>
 					</section>

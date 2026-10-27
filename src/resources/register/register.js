@@ -63,6 +63,19 @@ function Register({ onLogin }) {
 
 	return (
 		<main className="auth-page">
+			<div className="coffee-bg" aria-hidden="true">
+				<span className="coffee-steam"></span>
+				<span className="coffee-steam"></span>
+				<span className="coffee-steam"></span>
+				<span className="coffee-bean"></span>
+				<span className="coffee-bean"></span>
+				<span className="coffee-bean"></span>
+				<span className="coffee-bean"></span>
+				<span className="coffee-bean"></span>
+				<span className="coffee-bean"></span>
+				<span className="coffee-bean"></span>
+				<span className="coffee-bean"></span>
+			</div>
 			<section className="auth-card" aria-labelledby="register-title">
 				<div className="auth-brand"><FaCoffee aria-hidden="true" /><span>Café</span></div>
 				<p className="auth-eyebrow">Comienza tu jornada</p>

@@ -193,3 +193,146 @@
 .auth-form input[type='email'] {
   text-transform: lowercase;
 }
+.auth-page {
+  position: relative;
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 28px;
+  box-sizing: border-box;
+  overflow: hidden;
+  isolation: isolate;
+  /* Base: espresso oscuro con luz cálida de crema al centro */
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(192, 139, 92, 0.35) 0%, transparent 60%),
+    radial-gradient(ellipse at 15% 100%, rgba(62, 39, 35, 0.9) 0%, transparent 55%),
+    linear-gradient(160deg, #6f4e37 0%, #4a3024 55%, #2f1d15 100%);
+}
+
+/* ---------- Manchas de crema flotando (latte art difuso) ---------- */
+.auth-page::before,
+.auth-page::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.auth-page::before {
+  width: 55vmax;
+  height: 55vmax;
+  top: -20vmax;
+  left: -15vmax;
+  background: radial-gradient(circle, rgba(222, 184, 135, 0.28), transparent 65%);
+  animation: coffee-drift-a 26s ease-in-out infinite alternate;
+}
+
+.auth-page::after {
+  width: 50vmax;
+  height: 50vmax;
+  right: -18vmax;
+  bottom: -22vmax;
+  background: radial-gradient(circle, rgba(245, 222, 179, 0.2), transparent 65%);
+  animation: coffee-drift-b 32s ease-in-out infinite alternate;
+}
+
+@keyframes coffee-drift-a {
+  to { transform: translate3d(14vmax, 10vmax, 0) scale(1.15); }
+}
+
+@keyframes coffee-drift-b {
+  to { transform: translate3d(-12vmax, -8vmax, 0) scale(1.2); }
+}
+
+/* ---------- Granos de café flotantes ---------- */
+.coffee-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.coffee-bean {
+  position: absolute;
+  bottom: -60px;
+  width: var(--size);
+  height: calc(var(--size) * 1.45);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  background: radial-gradient(ellipse at 35% 30%, #8a5a3c, #3b241a 70%);
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: bean-rise var(--dur) linear var(--delay) infinite;
+}
+
+/* Hendidura central del grano */
+.coffee-bean::after {
+  content: '';
+  position: absolute;
+  top: 8%;
+  left: 50%;
+  width: 14%;
+  height: 84%;
+  border-radius: 50%;
+  background: rgba(20, 10, 6, 0.75);
+  transform: translateX(-50%) rotate(8deg);
+}
+
+@keyframes bean-rise {
+  0%   { transform: translate3d(0, 0, 0) rotate(var(--rot)); opacity: 0; }
+  10%  { opacity: 0.55; }
+  90%  { opacity: 0.4; }
+  100% { transform: translate3d(var(--sway), -115vh, 0) rotate(calc(var(--rot) + 220deg)); opacity: 0; }
+}
+
+.coffee-bean:nth-of-type(4) { left: 6%;  --size: 16px; --dur: 22s; --delay: 0s;   --rot: 20deg;  --sway: 40px; }
+.coffee-bean:nth-of-type(5) { left: 18%; --size: 24px; --dur: 30s; --delay: -8s;  --rot: -30deg; --sway: -50px; }
+.coffee-bean:nth-of-type(6) { left: 32%; --size: 14px; --dur: 25s; --delay: -14s; --rot: 60deg;  --sway: 30px; }
+.coffee-bean:nth-of-type(7) { left: 48%; --size: 20px; --dur: 34s; --delay: -4s;  --rot: 10deg;  --sway: -40px; }
+.coffee-bean:nth-of-type(8) { left: 63%; --size: 26px; --dur: 28s; --delay: -19s; --rot: -50deg; --sway: 60px; }
+.coffee-bean:nth-of-type(9) { left: 76%; --size: 15px; --dur: 24s; --delay: -11s; --rot: 35deg;  --sway: -30px; }
+.coffee-bean:nth-of-type(10) { left: 88%; --size: 22px; --dur: 32s; --delay: -2s;  --rot: -15deg; --sway: 45px; }
+.coffee-bean:nth-of-type(11) { left: 95%; --size: 13px; --dur: 27s; --delay: -16s; --rot: 75deg;  --sway: -35px; }
+
+/* ---------- Vapor subiendo (detrás de la tarjeta) ---------- */
+.coffee-steam {
+  position: absolute;
+  bottom: -10%;
+  width: 180px;
+  height: 60vh;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(255, 245, 230, 0.12), transparent 70%);
+  filter: blur(18px);
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: steam-rise 14s ease-in infinite;
+}
+
+.coffee-steam:nth-of-type(1) { left: 30%; animation-delay: 0s; }
+.coffee-steam:nth-of-type(2) { left: 50%; animation-delay: -5s; width: 220px; }
+.coffee-steam:nth-of-type(3) { left: 68%; animation-delay: -9s; }
+
+@keyframes steam-rise {
+  0%   { transform: translate3d(0, 20%, 0) scaleX(0.8); opacity: 0; }
+  30%  { opacity: 0.8; }
+  100% { transform: translate3d(30px, -40%, 0) scaleX(1.4); opacity: 0; }
+}
+
+/* ---------- Accesibilidad / ahorro de recursos ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .auth-page::before,
+  .auth-page::after,
+  .coffee-bean,
+  .coffee-steam {
+    animation: none;
+  }
+  .coffee-bean { opacity: 0.3; bottom: auto; top: 30%; }
+}
+
+/* En móviles menos elementos */
+@media (max-width: 480px) {
+  .coffee-bean:nth-of-type(n+8) { display: none; }
+  .coffee-steam:nth-of-type(3) { display: none; }
+}

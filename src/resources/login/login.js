@@ -32,8 +32,21 @@ function Login({ onRegister }) {
 
 	return (
 		<main className="auth-page">
+			<div className="coffee-bg" aria-hidden="true">
+				<span className="coffee-steam"></span>
+				<span className="coffee-steam"></span>
+				<span className="coffee-steam"></span>
+				<span className="coffee-bean"></span>
+				<span className="coffee-bean"></span>
+				<span className="coffee-bean"></span>
+				<span className="coffee-bean"></span>
+				<span className="coffee-bean"></span>
+				<span className="coffee-bean"></span>
+				<span className="coffee-bean"></span>
+				<span className="coffee-bean"></span>
+			</div>
 			<section className="auth-card" aria-labelledby="login-title">
-				<div className="auth-brand"><FaCoffee aria-hidden="true" /><span>Café</span></div>
+				<div className="auth-brand"><FaCoffee aria-hidden="true" /><span>Café Cervantes</span></div>
 				<p className="auth-eyebrow">Bienvenido de nuevo</p>
 				<h1 id="login-title">Inicia sesión</h1>
 				<p className="auth-description">Accede a la gestión de tu cafetería.</p>

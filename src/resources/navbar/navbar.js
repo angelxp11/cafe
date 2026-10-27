@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FaAddressBook, FaBoxOpen, FaCashRegister, FaChair, FaCoffee, FaCreditCard, FaFileInvoiceDollar, FaHome, FaShoppingCart, FaSignOutAlt, FaUserTie } from 'react-icons/fa';
+import { FaAddressBook, FaBoxOpen, FaCashRegister, FaChair, FaChartBar, FaCoffee, FaCreditCard, FaFileInvoiceDollar, FaHome, FaShoppingCart, FaSignOutAlt, FaUserTie } from 'react-icons/fa';
 import { signOut } from 'firebase/auth';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../server/api';
@@ -19,6 +19,7 @@ const navigationItems = [
 	{ id: 'Clientes', label: 'Clientes', icon: 'customers' },
 	{ id: 'Mesas', label: 'Mesas', icon: 'tables' },
 	{ id: 'Facturas', label: 'Facturas', icon: 'invoices' },
+	{ id: 'Reportes', label: 'Reportes', icon: 'reports' },
 	{ id: 'Métodos de pago', label: 'Métodos de pago', icon: 'payments' },
 ];
 
@@ -30,6 +31,7 @@ const iconByType = {
 	shift: FaCashRegister,
 	tables: FaChair,
 	invoices: FaFileInvoiceDollar,
+	reports: FaChartBar,
 	customers: FaAddressBook,
 	payments: FaCreditCard,
 };

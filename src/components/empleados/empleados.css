@@ -26,8 +26,8 @@
 }
 
 .employees-table th {
-	background: var(--color-background);
-	color: var(--color-text-secondary);
+	background: var(--color-sidebar);
+    color: #fffcfc;
 	font-weight: var(--font-semibold);
 }
 

@@ -8,9 +8,17 @@ import { formatThousandsInput, globalBalance, shiftBalance } from '../../server/
 import './metodospago.css';
 
 const defaultMethods = [
-	{ id: 'efectivo', nombre: 'Efectivo', tipo: 'efectivo' },
-	{ id: 'transferencia', nombre: 'Transferencia', tipo: 'transferencia' },
+	{ id: 'efectivo', nombre: 'Efectivo', tipo: 'efectivo', comision: 0 },
+	{ id: 'transferencia', nombre: 'Transferencia', tipo: 'transferencia', comision: 0 },
 ];
+
+function numericPercentage(value) {
+	const normalized = value.replace(',', '.').replace(/[^0-9.]/g, '');
+	const decimalIndex = normalized.indexOf('.');
+	return decimalIndex < 0
+		? normalized
+		: `${normalized.slice(0, decimalIndex + 1)}${normalized.slice(decimalIndex + 1).replace(/\./g, '')}`;
+}
 
 function formatDate(value) {
 	const date = value?.toDate ? value.toDate() : value ? new Date(value) : null;
@@ -24,7 +32,10 @@ function MetodosPago({ profile }) {
 	const [saving, setSaving] = useState(false);
 	const [name, setName] = useState('');
 	const [type, setType] = useState('transferencia');
+	const [commission, setCommission] = useState('0');
 	const [editing, setEditing] = useState(null);
+	const [editingCommission, setEditingCommission] = useState(null);
+	const [editCommission, setEditCommission] = useState('0');
 	const [editGlobal, setEditGlobal] = useState('');
 	const [editShift, setEditShift] = useState('');
 	const [editReason, setEditReason] = useState('');
@@ -121,13 +132,39 @@ function MetodosPago({ profile }) {
 			toast.warning('Escribe el nombre del método de pago.');
 			return;
 		}
+		const commissionValue = Number(commission);
+		if (!commission.trim() || !Number.isFinite(commissionValue) || commissionValue < 0 || commissionValue > 100) {
+			toast.warning('La comisión debe ser un porcentaje entre 0 y 100.');
+			return;
+		}
 		setSaving(true);
 		try {
-			await addDoc(collection(db, 'metodosPago'), { nombre: name.trim(), tipo: type, saldo: 0, saldoGlobal: 0, saldoTurno: 0, activo: true, creadoEn: new Date() });
+			await addDoc(collection(db, 'metodosPago'), { nombre: name.trim(), tipo: type, comision: commissionValue, saldo: 0, saldoGlobal: 0, saldoTurno: 0, activo: true, creadoEn: new Date() });
 			setName('');
+			setCommission('0');
 			toast.success('Método de pago creado.');
 		} catch (error) {
 			toast.error('No se pudo crear el método de pago.');
+		} finally {
+			setSaving(false);
+		}
+	}
+
+	async function saveCommission(event) {
+		event.preventDefault();
+		if (!editingCommission) return;
+		const commissionValue = Number(editCommission);
+		if (!editCommission.trim() || !Number.isFinite(commissionValue) || commissionValue < 0 || commissionValue > 100) {
+			toast.warning('La comisión debe ser un porcentaje entre 0 y 100.');
+			return;
+		}
+		setSaving(true);
+		try {
+			await setDoc(doc(db, 'metodosPago', editingCommission.id), { comision: commissionValue }, { merge: true });
+			setEditingCommission(null);
+			toast.success('Comisión actualizada.');
+		} catch (error) {
+			toast.error('No se pudo actualizar la comisión.');
 		} finally {
 			setSaving(false);
 		}
@@ -158,15 +195,18 @@ function MetodosPago({ profile }) {
 			<form className="payment-methods-form" onSubmit={createMethod}>
 				<label>Nombre<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. Nequi" /></label>
 				<label>Tipo<select value={type} onChange={(event) => setType(event.target.value)}><option value="transferencia">Transferencia</option><option value="efectivo">Efectivo</option></select></label>
+				<label>Comisión (%)<input type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={commission} onChange={(event) => setCommission(numericPercentage(event.target.value))} /></label>
 				<button className="payment-methods-add" type="submit" disabled={saving}><FaPlus aria-hidden="true" /> {saving ? 'Guardando...' : 'Agregar método'}</button>
 			</form>
 			{methods.length === 0 ? <div className="payment-methods-empty">No hay métodos de pago configurados.</div> : <div className="payment-methods-grid">
 				{methods.map((method) => <article className="payment-method-card" key={method.id}>
 					<header><strong>{method.nombre}</strong><span className="payment-method-type">{method.tipo}</span></header>
+					<p className="payment-method-commission">Comisión: <strong>{Number(method.comision || 0)}%</strong></p>
 					<div className="payment-method-balances"><div><span>Global</span><strong>${globalBalance(method).toLocaleString('es-CO')}</strong></div><div><span>Turno</span><strong>${shiftBalance(method).toLocaleString('es-CO')}</strong></div></div>
-					<div className="payment-method-actions"><button className="payment-method-edit" type="button" onClick={() => openEdit(method)}><FaEdit aria-hidden="true" /> Editar balance</button>{!defaultMethods.some((item) => item.id === method.id) && <button className="payment-method-delete" type="button" onClick={() => removeMethod(method)}><FaTrash aria-hidden="true" /> Eliminar</button>}</div>
+					<div className="payment-method-actions"><button className="payment-method-edit" type="button" onClick={() => openEdit(method)}><FaEdit aria-hidden="true" /> Editar balance</button><button className="payment-method-edit" type="button" onClick={() => { setEditingCommission(method); setEditCommission(String(method.comision || 0)); }}><FaEdit aria-hidden="true" /> Editar comisión</button>{!defaultMethods.some((item) => item.id === method.id) && <button className="payment-method-delete" type="button" onClick={() => removeMethod(method)}><FaTrash aria-hidden="true" /> Eliminar</button>}</div>
 				</article>)}
 			</div>}
+			{editingCommission && <div className="payment-method-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && !saving && setEditingCommission(null)}><form className="payment-method-commission-modal" onSubmit={saveCommission} role="dialog" aria-modal="true" aria-labelledby="payment-commission-title"><header><div><p className="app-eyebrow">Configuración de cobro</p><h2 id="payment-commission-title">Editar comisión: {editingCommission.nombre}</h2></div><button className="payment-method-modal-close" type="button" aria-label="Cerrar modal" onClick={() => setEditingCommission(null)} disabled={saving}>×</button></header><label htmlFor="payment-commission-input">Comisión porcentual (%)<input id="payment-commission-input" type="text" inputMode="decimal" pattern="[0-9]*[.,]?[0-9]*" value={editCommission} onChange={(event) => setEditCommission(numericPercentage(event.target.value))} autoFocus /></label><small>Este porcentaje se suma a la parte de la cuenta pagada con este método. Usa un valor entre 0 y 100.</small><div className="payment-method-modal-actions"><button type="button" onClick={() => setEditingCommission(null)} disabled={saving}>Cancelar</button><button type="submit" disabled={saving}>{saving ? 'Guardando...' : 'Guardar comisión'}</button></div></form></div>}
 			{editing && <form className="payment-method-edit-form" onSubmit={saveBalance}><h2>Editar balance: {editing.nombre}</h2><label>Saldo global<input type="text" inputMode="numeric" pattern="[0-9.]*" value={editGlobal} onChange={(event) => setEditGlobal(formatThousandsInput(event.target.value))} /></label><label>Saldo del turno<input type="text" inputMode="numeric" pattern="[0-9.]*" value={editShift} onChange={(event) => setEditShift(formatThousandsInput(event.target.value))} /></label><label>Motivo del ajuste<input value={editReason} onChange={(event) => setEditReason(event.target.value.toUpperCase())} placeholder="Ej. Corrección de arqueo" /></label><div><button type="button" onClick={() => setEditing(null)}>Cancelar</button><button type="submit" disabled={saving}>{saving ? 'Guardando...' : 'Guardar ajuste'}</button></div></form>}
 			<section className="payment-method-history" aria-labelledby="payment-method-history-title"><header><h2 id="payment-method-history-title">Historial de movimientos</h2><span>{movements.length} registros</span></header>{movements.length === 0 ? <p>No hay movimientos de balances registrados.</p> : <div>{movements.map((movement) => <article key={movement.id}><div><strong>{movement.descripcion || movement.tipo}</strong><span>{movement.metodoNombre} · {movement.creadoPor || 'Usuario'} · {movement.creadoPorCorreo || ''} · {formatDate(movement.creadoEn)}</span></div><small>{movement.tipo === 'ajuste_balance' ? `Global ${Number(movement.saldoGlobalAnterior || 0).toLocaleString('es-CO')} → ${Number(movement.saldoGlobalNuevo || 0).toLocaleString('es-CO')} · Turno ${Number(movement.saldoTurnoAnterior || 0).toLocaleString('es-CO')} → ${Number(movement.saldoTurnoNuevo || 0).toLocaleString('es-CO')}` : `${movement.tipo} · $${Number(movement.monto || 0).toLocaleString('es-CO')}`}</small></article>)}</div>}</section>
 		</section>

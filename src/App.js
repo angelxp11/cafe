@@ -16,6 +16,7 @@ import Mesas from './components/mesas/mesas';
 import MetodosPago from './components/metodosdepagos/metodospago';
 import Facturas from './components/facturas/facturas';
 import Clientes from './components/mesas/clientes/clientes';
+import Reportes from './components/reportes/reportes';
 
 function App() {
 	const [user, setUser] = useState(null);
@@ -73,6 +74,7 @@ function App() {
 		if (activeSection === 'Mesas') return <Mesas profile={userProfile} />;
 		if (activeSection === 'Clientes') return <Clientes profile={userProfile} />;
 		if (activeSection === 'Facturas') return <Facturas profile={userProfile} />;
+		if (activeSection === 'Reportes') return <Reportes />;
 		if (activeSection === 'Métodos de pago' && userProfile?.rol === 'admin') return <MetodosPago profile={userProfile} />;
 		return <Homepage profile={userProfile} />;
 	}

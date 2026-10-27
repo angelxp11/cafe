@@ -197,13 +197,18 @@ function Facturas({ profile }) {
 						const flavors = (product.data.sabores || []).map((flavor) => {
 							const name = typeof flavor === 'string' ? flavor : flavor.nombre;
 							const quantity = Number(adjustment.sabores?.[name]) || 0;
-							return quantity && typeof flavor !== 'string' ? { ...flavor, stock: Number(flavor.stock || 0) + quantity } : flavor;
+							const currentStock = Number(flavor.stock || 0);
+							const nextStock = adjustment.enReversa === true ? Math.max(0, currentStock - quantity) : currentStock + quantity;
+							return quantity && typeof flavor !== 'string' ? { ...flavor, stock: nextStock } : flavor;
 						});
 						const missingFlavor = Object.keys(adjustment.sabores || {}).some((name) => !flavors.some((flavor) => (typeof flavor === 'string' ? flavor : flavor.nombre) === name && typeof flavor !== 'string'));
 						if (missingFlavor) throw new Error(`No se pudo restaurar un sabor de ${product.data.nombre}.`);
 						transaction.update(product.reference, { sabores: flavors, ultimoMovimientoInventarioId: invoice.id });
 					} else {
-						transaction.update(product.reference, { stock: Number(product.data.stock || 0) + Number(adjustment.cantidad || 0), ultimoMovimientoInventarioId: invoice.id });
+						const currentStock = Number(product.data.stock || 0);
+						const quantity = Number(adjustment.cantidad || 0);
+						const nextStock = adjustment.enReversa === true ? Math.max(0, currentStock - quantity) : currentStock + quantity;
+						transaction.update(product.reference, { stock: nextStock, ultimoMovimientoInventarioId: invoice.id });
 					}
 				}
 				transaction.update(invoiceReference, {
@@ -254,6 +259,7 @@ function Facturas({ profile }) {
 				quantity: Number(item.cantidad || 0),
 				unitPrice: Number(item.precioUnidad || 0),
 			})),
+			commission: Number(invoiceToPrint.comision || 0),
 			total: Number(invoiceToPrint.monto || 0),
 		};
 		const publicPath = (process.env.PUBLIC_URL || '').replace(/\/$/, '');
@@ -309,7 +315,7 @@ function Facturas({ profile }) {
 					<div className="invoice-detail-meta"><div><span>Fecha</span><strong>{formatDate(selectedInvoice.pagadoEn)}</strong></div><div><span>Mesa</span><strong>{selectedInvoice.mesaNombre}</strong></div><div><span>Registró</span><strong>{selectedInvoice.registradaPor || '—'}</strong></div></div>
 					{selectedInvoice.cancelada && <div className="invoice-cancelled-notice" role="status"><strong>Factura cancelada</strong><span>Motivo: {selectedInvoice.motivoCancelacion || 'Sin motivo registrado'}</span><span>Existencias restauradas.</span></div>}
 					<h3>Productos</h3>
-					<div className="invoice-lines">{(selectedInvoice.pedido || []).map((item, index) => <div key={`${item.lineId || item.id}-${index}`}><span>{item.cantidad} × {item.nombre}</span><strong>{formatMoney(Number(item.precioUnidad || 0) * Number(item.cantidad || 0))}</strong></div>)}</div>
+					<div className="invoice-lines">{(selectedInvoice.pedido || []).map((item, index) => <div key={`${item.lineId || item.id}-${index}`}><span>{item.cantidad} × {item.nombre}</span><strong>{formatMoney(Number(item.precioUnidad || 0) * Number(item.cantidad || 0))}</strong></div>)}{Number(selectedInvoice.comision || 0) > 0 && <div><span>Comisión de pago</span><strong>{formatMoney(selectedInvoice.comision)}</strong></div>}</div>
 					{selectedInvoice.tipo === 'credito_cliente' && <p className="invoice-cash-details">Saldo pendiente: {formatMoney(selectedInvoice.saldoRestante)} · Estado: {selectedInvoice.estado || 'pendiente'}</p>}
 					<h3>{selectedInvoice.tipo === 'credito_cliente' ? 'Estado de cuenta' : 'Métodos de pago'}</h3>
 					<div className="invoice-payment-lines">{invoiceMethods(selectedInvoice).map((payment, index) => <div key={`${payment.metodoId || payment.nombre}-${index}`}><div><strong>{payment.nombre}</strong><span>{payment.tipo || ''}</span></div><strong>{formatMoney(payment.monto)}</strong>{payment.tipo === 'efectivo' && payment.denominaciones?.length > 0 && <small>{payment.denominaciones.map(({ valor, cantidad }) => `${cantidad} × ${formatMoney(valor)}`).join(' · ')}</small>}</div>)}</div>

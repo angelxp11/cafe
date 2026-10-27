@@ -72,7 +72,7 @@ function denominationTable(entries) {
 	return `<span style="display:flex;flex-wrap:wrap;gap:7px;margin-top:8px">${rows}<strong style="display:block;width:100%;margin-top:3px;color:#24312d">Total efectivo: ${formatMoney(total)}</strong></span>`;
 }
 
-function reportHtml(shift, invoices, movements, inventory) {
+export function reportHtml(shift, invoices, movements, inventory) {
 	const cancelledInvoices = invoices.filter((invoice) => invoice.cancelada === true || invoice.cancelada === 'true');
 	const validInvoices = invoices.filter((invoice) => invoice.cancelada !== true && invoice.cancelada !== 'true');
 	const methodTotals = new Map();
@@ -104,6 +104,9 @@ function reportHtml(shift, invoices, movements, inventory) {
 	}
 	const inventoryById = new Map(inventory.map((item) => [item.id, item]));
 	const methodsRows = [...methodTotals].map(([key, amount]) => `<tr><td>${escapeHtml(methodNameById.get(key))}</td><td>${escapeHtml(methodsNameType(validInvoices, key))}</td><td>${formatMoney(amount)}</td></tr>`).join('');
+	const methodsMetrics = [...methodTotals]
+		.map(([key, amount]) => `<div class="metric"><span>Ingresos · ${escapeHtml(methodNameById.get(key) || 'Otro método')}</span><strong>${formatMoney(amount)}</strong></div>`)
+		.join('');
 	const salesRows = [...soldItems.values()].map((item) => {
 		const stockItem = inventoryById.get(item.id);
 		return `<tr><td>${escapeHtml(item.id || '—')}</td><td>${escapeHtml(stockItem?.nombre || item.nombre)}</td><td>${item.cantidad}</td><td>${escapeHtml(stockItem?.tipo === 'preparable' ? 'Preparación' : 'Producto')}</td></tr>`;
@@ -118,7 +121,7 @@ function reportHtml(shift, invoices, movements, inventory) {
 	const closedAt = formatDate(shift.cierre?.cerradoEn);
 	return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cierre de turno</title><style>
 		:root{font-family:Arial,sans-serif;color:#24312d;background:#edf1ed}*{box-sizing:border-box}body{margin:0;padding:32px}.report{max-width:980px;margin:auto;background:#fff;border:1px solid #d9e0dc}.masthead{padding:30px 36px;background:#29443b;color:#fff}.eyebrow{margin:0 0 8px;color:#c8d7cd;font-size:11px;letter-spacing:1px;text-transform:uppercase}.masthead h1{margin:0;font-size:28px}.masthead p{margin:8px 0 0;color:#dbe7de}.content{padding:28px 36px}.meta,.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.meta{padding-bottom:22px;border-bottom:1px solid #e1e7e3}.meta span,.metric span{display:block;color:#63736b;font-size:12px}.meta strong{display:block;margin-top:5px;font-size:14px}.metrics{margin:22px 0}.metric{padding:14px;border:1px solid #dfe6e1;background:#f8faf8}.metric strong{display:block;margin-top:6px;font-size:19px}.section{margin-top:26px}.section h2{margin:0 0 10px;font-size:16px}.section-note{margin:-3px 0 11px;color:#66766e;font-size:12px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px 10px;border-bottom:1px solid #e6ebe8;text-align:left}th{background:#f3f6f3;color:#58685f;font-size:11px;text-transform:uppercase}.right{text-align:right}.denominations{padding:12px;background:#f7f9f7;color:#506159;font-size:12px}.footer{display:flex;justify-content:space-between;gap:16px;margin-top:28px;padding-top:14px;border-top:1px solid #dfe6e1;color:#63736b;font-size:11px}.actions{display:flex;justify-content:flex-end;gap:10px;margin:0 auto 14px;max-width:980px}.actions button{padding:10px 15px;border:0;background:#29443b;color:white;cursor:pointer;font-weight:700}@media print{body{padding:0;background:#fff}.report{max-width:none;border:0}.actions{display:none}.masthead,.metric,th{-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{margin:14mm}}
-		</style></head><body><div class="actions"><button onclick="window.print()">Imprimir / Guardar PDF</button></div><main class="report"><header class="masthead"><p class="eyebrow">Café · Control de caja</p><h1>Resumen de cierre de turno</h1><p>${escapeHtml(startedAt)} — ${escapeHtml(closedAt)}</p></header><div class="content"><div class="meta"><div><span>Abrió</span><strong>${escapeHtml(shift.apertura?.empleadoNombre || '—')}</strong></div><div><span>Cerró</span><strong>${escapeHtml(shift.cierre?.empleadoNombre || '—')}</strong></div><div><span>Duración</span><strong>${escapeHtml(formatDuration(shift.cierre?.duracionMs || 0))}</strong></div></div><div class="metrics"><div class="metric"><span>Facturas</span><strong>${validInvoices.length}</strong></div><div class="metric"><span>Facturas canceladas</span><strong>${cancelledInvoices.length}</strong></div><div class="metric"><span>Facturado neto</span><strong>${formatMoney(totalFacturado)}</strong></div><div class="metric"><span>Egresos</span><strong>${formatMoney(expenses.reduce((sum, movement) => sum + Number(movement.monto || 0), 0))}</strong></div><div class="metric"><span>Efectivo de apertura</span><strong>${formatMoney(shift.apertura?.efectivo)}</strong></div><div class="metric"><span>Efectivo contado al cierre</span><strong>${formatMoney(shift.cierre?.efectivoContado)}</strong></div></div><p class="denominations"><strong>Conteo inicial:</strong> ${openingDenominations}<br><strong>Conteo final:</strong> ${closingDenominations}</p><section class="section"><h2>Ingresos por método de pago</h2><table><thead><tr><th>Método</th><th>Tipo</th><th class="right">Total</th></tr></thead><tbody>${methodsRows || '<tr><td colspan="3">Sin facturas registradas</td></tr>'}</tbody></table></section><section class="section"><h2>Inventario vendido</h2><p class="section-note">Unidades de producto registradas en facturas vigentes del turno.</p><table><thead><tr><th>Identificador</th><th>Producto</th><th>Cantidad</th><th>Clase</th></tr></thead><tbody>${salesRows || '<tr><td colspan="4">Sin productos vendidos</td></tr>'}</tbody></table></section><section class="section"><h2>Egresos del turno</h2><table><thead><tr><th>Método</th><th>Movimientos</th><th class="right">Total</th></tr></thead><tbody>${expenseRows || '<tr><td colspan="3">Sin egresos</td></tr>'}</tbody></table></section><section class="section"><h2>Facturas canceladas</h2><table><thead><tr><th>Folio</th><th>Mesa</th><th>Motivo</th><th class="right">Devuelto</th></tr></thead><tbody>${cancelledRows || '<tr><td colspan="4">Sin facturas canceladas</td></tr>'}</tbody></table></section><section class="section"><h2>Facturas incluidas</h2><table><thead><tr><th>Folio</th><th>Mesa</th><th>Método</th><th class="right">Total</th></tr></thead><tbody>${invoiceRows || '<tr><td colspan="4">Sin facturas registradas</td></tr>'}</tbody></table></section><footer class="footer"><span>Reporte generado el ${escapeHtml(new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date()))}</span><span>Turno ${escapeHtml(shift.id)}</span></footer></div></main></body></html>`;
+		</style></head><body><div class="actions"><button onclick="window.print()">Imprimir / Guardar PDF</button></div><main class="report"><header class="masthead"><p class="eyebrow">Café · Control de caja</p><h1>Resumen de cierre de turno</h1><p>${escapeHtml(startedAt)} — ${escapeHtml(closedAt)}</p></header><div class="content"><div class="meta"><div><span>Abrió</span><strong>${escapeHtml(shift.apertura?.empleadoNombre || '—')}</strong></div><div><span>Cerró</span><strong>${escapeHtml(shift.cierre?.empleadoNombre || '—')}</strong></div><div><span>Duración</span><strong>${escapeHtml(formatDuration(shift.cierre?.duracionMs || 0))}</strong></div></div><div class="metrics"><div class="metric"><span>Facturas</span><strong>${validInvoices.length}</strong></div><div class="metric"><span>Facturas canceladas</span><strong>${cancelledInvoices.length}</strong></div><div class="metric"><span>Facturado neto</span><strong>${formatMoney(totalFacturado)}</strong></div><div class="metric"><span>Egresos</span><strong>${formatMoney(expenses.reduce((sum, movement) => sum + Number(movement.monto || 0), 0))}</strong></div><div class="metric"><span>Efectivo de apertura</span><strong>${formatMoney(shift.apertura?.efectivo)}</strong></div><div class="metric"><span>Efectivo contado al cierre</span><strong>${formatMoney(shift.cierre?.efectivoContado)}</strong></div>${methodsMetrics}</div><p class="denominations"><strong>Conteo inicial:</strong> ${openingDenominations}<br><strong>Conteo final:</strong> ${closingDenominations}</p><section class="section"><h2>Ingresos por método de pago</h2><table><thead><tr><th>Método</th><th>Tipo</th><th class="right">Total</th></tr></thead><tbody>${methodsRows || '<tr><td colspan="3">Sin facturas registradas</td></tr>'}</tbody></table></section><section class="section"><h2>Inventario vendido</h2><p class="section-note">Unidades de producto registradas en facturas vigentes del turno.</p><table><thead><tr><th>Identificador</th><th>Producto</th><th>Cantidad</th><th>Clase</th></tr></thead><tbody>${salesRows || '<tr><td colspan="4">Sin productos vendidos</td></tr>'}</tbody></table></section><section class="section"><h2>Egresos del turno</h2><table><thead><tr><th>Método</th><th>Movimientos</th><th class="right">Total</th></tr></thead><tbody>${expenseRows || '<tr><td colspan="3">Sin egresos</td></tr>'}</tbody></table></section><section class="section"><h2>Facturas canceladas</h2><table><thead><tr><th>Folio</th><th>Mesa</th><th>Motivo</th><th class="right">Devuelto</th></tr></thead><tbody>${cancelledRows || '<tr><td colspan="4">Sin facturas canceladas</td></tr>'}</tbody></table></section><section class="section"><h2>Facturas incluidas</h2><table><thead><tr><th>Folio</th><th>Mesa</th><th>Método</th><th class="right">Total</th></tr></thead><tbody>${invoiceRows || '<tr><td colspan="4">Sin facturas registradas</td></tr>'}</tbody></table></section><footer class="footer"><span>Reporte generado el ${escapeHtml(new Intl.DateTimeFormat('es-CO', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date()))}</span><span>Turno ${escapeHtml(shift.id)}</span></footer></div></main></body></html>`;
 }
 
 function methodsNameType(invoices, methodId) {
@@ -144,6 +147,8 @@ function Turno({ profile }) {
 	const [movementMethodId, setMovementMethodId] = useState('');
 	const [movementAmount, setMovementAmount] = useState('');
 	const [movementNote, setMovementNote] = useState('');
+	const [movementCategory, setMovementCategory] = useState('');
+	const [activeShiftView, setActiveShiftView] = useState('movement');
 	const [now, setNow] = useState(Date.now());
 	const employeeName = [profile?.nombre, profile?.apellido].filter(Boolean).join(' ') || profile?.correo || auth.currentUser?.email || 'Usuario';
 	const employeeEmail = profile?.correo || auth.currentUser?.email || '';
@@ -152,6 +157,10 @@ function Turno({ profile }) {
 	const openingTotal = countTotal(openingCounts);
 	const closingTotal = countTotal(closingCounts);
 	const movementCashTotal = countTotal(movementCounts);
+	const expenseCategories = [...new Set(movements
+		.filter((movement) => movement.tipo === 'egreso' || movement.direccion === 'egreso')
+		.map((movement) => String(movement.categoria || '').trim().toLocaleUpperCase('es-CO'))
+		.filter(Boolean))].sort((first, second) => first.localeCompare(second, 'es'));
 
 	useEffect(() => {
 		const stopMethods = onSnapshot(collection(db, 'metodosPago'), (snapshot) => {
@@ -273,6 +282,11 @@ function Turno({ profile }) {
 	async function saveMovement(event) {
 		event.preventDefault();
 		if (!activeShift || !selectedMovementMethod) return;
+		const category = movementCategory.trim().toLocaleUpperCase('es-CO');
+		if (movementType === 'egreso' && !category) {
+			toast.warning('Selecciona o escribe una categoría para el egreso.');
+			return;
+		}
 		const amount = selectedMovementMethod.tipo === 'efectivo' ? movementCashTotal : Number(String(movementAmount).replace(/\D/g, '')) || 0;
 		if (amount <= 0) {
 			toast.warning(selectedMovementMethod.tipo === 'efectivo' ? 'Cuenta los billetes del movimiento.' : 'Indica un monto válido.');
@@ -300,6 +314,7 @@ function Turno({ profile }) {
 					monto: amount,
 					denominaciones: selectedMovementMethod.tipo === 'efectivo' ? countEntries(movementCounts) : [],
 					descripcion: movementNote.trim() || (movementType === 'ingreso' ? 'Ingreso de dinero' : 'Egreso de dinero'),
+					...(movementType === 'egreso' ? { categoria: category } : {}),
 					creadoPor: employeeName,
 					creadoPorCorreo: employeeEmail,
 					creadoEn: serverTimestamp(),
@@ -308,6 +323,7 @@ function Turno({ profile }) {
 			setMovementCounts(emptyCount());
 			setMovementAmount('');
 			setMovementNote('');
+			setMovementCategory('');
 			toast.success('Movimiento registrado.');
 		} catch (error) {
 			toast.error(error.message || 'No se pudo registrar el movimiento.');
@@ -447,19 +463,24 @@ function Turno({ profile }) {
 				<section className="shift-balances" aria-label="Saldo esperado por método">
 					{methods.map((method) => <div key={method.id}><span>{method.nombre}</span><strong>{formatMoney(expectedBalances[method.id] || 0)}</strong></div>)}
 				</section>
+				<div className="shift-view-switch" role="group" aria-label="Vista de caja">
+					<button type="button" className={activeShiftView === 'movement' ? 'active' : ''} aria-pressed={activeShiftView === 'movement'} onClick={() => setActiveShiftView('movement')}>Movimiento de caja</button>
+					<button type="button" className={activeShiftView === 'closing' ? 'active' : ''} aria-pressed={activeShiftView === 'closing'} onClick={() => setActiveShiftView('closing')}>Cerrar turno</button>
+				</div>
 				<div className="shift-work-grid">
-					<form className="shift-panel" onSubmit={saveMovement}>
+					<form className="shift-panel" hidden={activeShiftView !== 'movement'} onSubmit={saveMovement}>
 						<div className="shift-panel-heading"><div><h2>Movimiento de caja</h2><p>Registra dinero recibido o entregado.</p></div><FaArrowUp aria-hidden="true" /></div>
 						<div className="shift-form-grid">
 							<label>Tipo<select value={movementType} onChange={(event) => setMovementType(event.target.value)}><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></label>
 							<label>Método de pago<select value={movementMethodId} onChange={(event) => { setMovementMethodId(event.target.value); setMovementCounts(emptyCount()); setMovementAmount(''); }}>{methods.map((method) => <option key={method.id} value={method.id}>{method.nombre}</option>)}</select></label>
 						</div>
 						{selectedMovementMethod?.tipo === 'efectivo' ? <DenominationCounter counts={movementCounts} onChange={(denomination, value) => updateCounts(setMovementCounts, denomination, value)} /> : <label className="shift-field">Monto<input inputMode="numeric" value={movementAmount} onChange={(event) => setMovementAmount(event.target.value.replace(/\D/g, ''))} placeholder="0" /></label>}
-						<label className="shift-field">Descripción<input value={movementNote} onChange={(event) => setMovementNote(event.target.value)} placeholder={movementType === 'ingreso' ? 'Motivo del ingreso' : 'Motivo del egreso'} /></label>
+						{movementType === 'egreso' && <label className="shift-field">Categoría<input list="shift-expense-categories" value={movementCategory} onChange={(event) => setMovementCategory(event.target.value.toLocaleUpperCase('es-CO'))} placeholder="Escribe o selecciona una categoría" required /><datalist id="shift-expense-categories">{expenseCategories.map((category) => <option key={category} value={category} />)}</datalist><small>Escribe una categoría nueva o reutiliza una existente.</small></label>}
+						<label className="shift-field">Descripción<input value={movementNote} onChange={(event) => setMovementNote(event.target.value)} placeholder={movementType === 'ingreso' ? 'Motivo del ingreso' : 'Detalle del egreso'} /></label>
 						<div className="shift-opening-summary"><span>Monto del movimiento</span><strong>{formatMoney(selectedMovementMethod?.tipo === 'efectivo' ? movementCashTotal : movementAmount)}</strong></div>
 						<button className="shift-primary-button" type="submit" disabled={busy || !methods.length}>{movementType === 'ingreso' ? <FaArrowDown aria-hidden="true" /> : <FaArrowUp aria-hidden="true" />} Registrar {movementType}</button>
 					</form>
-					<form className="shift-panel shift-close-panel" onSubmit={closeShift}>
+					<form className="shift-panel shift-close-panel" hidden={activeShiftView !== 'closing'} onSubmit={closeShift}>
 						<div className="shift-panel-heading"><div><h2>Cerrar turno</h2><p>Responsable del cierre: {employeeName}</p></div><FaStop aria-hidden="true" /></div>
 						<p className="shift-section-label">Conteo final de efectivo</p>
 						<DenominationCounter counts={closingCounts} onChange={(denomination, value) => updateCounts(setClosingCounts, denomination, value)} />
@@ -494,7 +515,7 @@ function MovementLog({ movements, onPrintClosure }) {
 	if (movements.length === 0) return <p className="shift-empty">Todavía no hay movimientos en este turno.</p>;
 	return <div className="shift-movement-list">{movements.map((movement) => <article className="shift-movement" key={movement.id}>
 		<div className={`shift-movement-icon shift-movement-${movement.direccion}`} aria-hidden="true">{movement.direccion === 'egreso' ? <FaArrowUp /> : movement.direccion === 'ingreso' ? <FaArrowDown /> : <FaClock />}</div>
-		<div className="shift-movement-description"><strong>{movement.descripcion || movement.tipo}</strong><span>{movement.metodoNombre || 'Sin método'} · {movement.creadoPor || 'Usuario'} · {formatDate(movement.creadoEn)}</span>{movement.denominaciones?.length > 0 && <small>{movement.denominaciones.map(({ valor, cantidad }) => `${cantidad} × ${formatMoney(valor)}`).join(' · ')}</small>}</div>
+		<div className="shift-movement-description"><strong>{movement.descripcion || movement.tipo}</strong>{movement.categoria && <small>Categoría: {movement.categoria}</small>}<span>{movement.metodoNombre || 'Sin método'} · {movement.creadoPor || 'Usuario'} · {formatDate(movement.creadoEn)}</span>{movement.denominaciones?.length > 0 && <small>{movement.denominaciones.map(({ valor, cantidad }) => `${cantidad} × ${formatMoney(valor)}`).join(' · ')}</small>}</div>
 		<strong className="shift-movement-amount">{formatMoney(movement.monto)}</strong>
 		{movement.tipo === 'cierre' && onPrintClosure && <button className="shift-print-button" type="button" onClick={onPrintClosure}><FaPrint aria-hidden="true" /> Imprimir cierre</button>}
 	</article>)}</div>;

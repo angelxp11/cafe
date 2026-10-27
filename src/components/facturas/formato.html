@@ -342,6 +342,7 @@
       <div class="f-totales">
         <table>
           <tr><td class="et">Subtotal</td><td class="va" id="factura-subtotal">[$23.800]</td></tr>
+          <tr id="factura-comision-row" style="display:none"><td class="et">Comisión de pago</td><td class="va" id="factura-comision">$0</td></tr>
           <tr><td class="et">Descuentos</td><td class="va" id="factura-descuento">[$0]</td></tr>
           <tr class="total"><td>Total a pagar</td><td class="va" id="factura-total">[$23.800]</td></tr>
         </table>
@@ -393,6 +394,7 @@
 
     <div class="t-sep"></div>
 
+    <div class="t-fila" id="ticket-comision-row" style="display:none"><span>Comisión de pago</span><span id="ticket-comision">$0</span></div>
     <div class="t-fila t-tot"><span>TOTAL</span><span id="ticket-total">[$23.800]</span></div>
 
     <div class="t-sep"></div>
@@ -477,12 +479,18 @@
     texto('ticket-cliente', cliente.name || 'Consumidor final');
     texto('ticket-pago', `${factura.paymentType || 'Contado'} - ${medioPago}`);
     texto('ticket-total', dinero(factura.total));
+    texto('ticket-comision', dinero(factura.commission || 0));
+    const filaComisionTicket = document.getElementById('ticket-comision-row');
+    if(filaComisionTicket && Number(factura.commission || 0) > 0) filaComisionTicket.style.display = '';
 
     const telefono = document.getElementById('factura-telefono');
     if(telefono && !cliente.phone) telefono.style.display = 'none';
 
     const subtotal = productos.reduce((suma, producto) => suma + Number(producto.unitPrice || 0) * Number(producto.quantity || 0), 0);
     texto('factura-subtotal', dinero(subtotal));
+    texto('factura-comision', dinero(factura.commission || 0));
+    const filaComision = document.getElementById('factura-comision-row');
+    if(filaComision && Number(factura.commission || 0) > 0) filaComision.style.display = '';
     texto('factura-descuento', dinero(0));
     texto('factura-total', dinero(factura.total));
     const letras = document.getElementById('factura-letras');

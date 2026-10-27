@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, deleteField, doc, onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { FaBeer, FaCheck, FaCoffee, FaCookieBite, FaGlassWhiskey, FaMinus, FaPlus, FaShoppingCart, FaTag, FaTimes, FaUtensils, FaUserFriends } from 'react-icons/fa';
 import { auth, db } from '../../../server/api';
-import { shiftBalance } from '../../../server/paymentMethods';
+import { amountWithCommission, paymentCommission, shiftBalance } from '../../../server/paymentMethods';
 import LoadingScreen from '../../../resources/loading/LoadingScreen';
 import toast from '../../../resources/toast/toast';
 import Caja from './caja/caja';
@@ -134,6 +134,19 @@ function Cuenta({ table, profile, onClose }) {
 
 	function formatOrderDate(timestamp) {
 		return new Intl.DateTimeFormat('es-CO', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(timestamp));
+	}
+
+	function getOrderTimeGroups(item) {
+		const timestamps = item.horasPedido?.length ? item.horasPedido : [item.addedAt];
+		const groups = new Map();
+		timestamps.forEach((timestamp) => {
+			const date = new Date(timestamp);
+			const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}-${date.getHours()}-${date.getMinutes()}`;
+			const group = groups.get(key) || { timestamp, quantity: 0 };
+			group.quantity += 1;
+			groups.set(key, group);
+		});
+		return [...groups.values()];
 	}
 
 	async function saveDescription() {
@@ -270,21 +283,52 @@ function Cuenta({ table, profile, onClose }) {
 		const invoiceReference = doc(collection(db, 'facturas'));
 		const orderData = cart.map(({ id, nombre, precioUnidad, cantidad, lineId, addedAt, horasPedido }) => ({ id, nombre, precioUnidad: Number(precioUnidad || 0), cantidad, lineId, addedAt, horasPedido }));
 		const paidOrder = paidItems || orderData;
-		const paidTotal = paidOrder.reduce((sum, item) => sum + Number(item.precioUnidad || 0) * item.cantidad, 0);
+		const subtotal = paidOrder.reduce((sum, item) => sum + Number(item.precioUnidad || 0) * item.cantidad, 0);
+		let paidTotal = subtotal;
 		const remainingOrder = paidItems ? orderData.map((item) => ({ ...item, cantidad: item.cantidad - (paidItems.find((paidItem) => paidItem.lineId === item.lineId)?.cantidad || 0) })).filter((item) => item.cantidad > 0) : [];
-		const paymentAllocations = allocations?.length ? allocations : [{ methodId: method.id, nombre: method.nombre, monto: paidTotal, amount: paidTotal, method, denominations: paymentDetails.denominations || [], received: paymentDetails.received || 0, change: paymentDetails.change || 0 }];
-		const balanceByMethod = paymentAllocations.reduce((balances, allocation) => ({ ...balances, [allocation.methodId]: (balances[allocation.methodId] || 0) + Number(allocation.amount || allocation.monto || 0) }), {});
-		const movementReferences = paymentAllocations.map(() => doc(collection(db, 'movimientos')));
+		const requestedAllocations = allocations?.length ? allocations : [{ methodId: method.id, nombre: method.nombre, baseAmount: subtotal, method, denominations: paymentDetails.denominations || [], received: paymentDetails.received || 0, change: paymentDetails.change || 0 }];
+		let paymentAllocations = [];
+		const movementReferences = requestedAllocations.map(() => doc(collection(db, 'movimientos')));
 		const tableIds = table.tableIds?.length ? table.tableIds : [liveTable.id];
 		const separatesCombinedTables = !paidItems && tableIds.length > 1;
 
 		await runTransaction(db, async (transaction) => {
 			const methodSnapshots = new Map();
-			for (const methodId of Object.keys(balanceByMethod)) {
+			const methodIds = [...new Set(requestedAllocations.map((allocation) => allocation.methodId))];
+			for (const methodId of methodIds) {
 				const methodSnapshot = await transaction.get(doc(db, 'metodosPago', methodId));
 				if (!methodSnapshot.exists()) throw new Error('Uno de los métodos de pago ya no está disponible.');
 				methodSnapshots.set(methodId, methodSnapshot);
 			}
+			paymentAllocations = requestedAllocations.map((allocation) => {
+				const methodData = methodSnapshots.get(allocation.methodId).data();
+				const baseAmount = Number(allocation.baseAmount ?? allocation.amount ?? allocation.monto ?? 0);
+				const commissionPercentage = Number(methodData.comision ?? 0);
+				if (!Number.isFinite(commissionPercentage) || commissionPercentage < 0 || commissionPercentage > 100) {
+					throw new Error(`La comisión configurada para ${methodData.nombre || 'un método de pago'} no es válida.`);
+				}
+				const commissionAmount = paymentCommission(baseAmount, commissionPercentage);
+				const amount = amountWithCommission(baseAmount, commissionPercentage);
+				const received = Number(allocation.received || 0);
+				if (methodData.tipo === 'efectivo' && received < amount) {
+					throw new Error(`El efectivo recibido para ${methodData.nombre || 'el pago'} no cubre el total con comisión.`);
+				}
+				return {
+					...allocation,
+					method: methodData,
+					baseAmount,
+					commissionPercentage,
+					commissionAmount,
+					amount,
+					change: methodData.tipo === 'efectivo' ? received - amount : 0,
+				};
+			});
+			if (paymentAllocations.some((allocation) => allocation.baseAmount <= 0)
+				|| paymentAllocations.reduce((sum, allocation) => sum + allocation.baseAmount, 0) !== subtotal) {
+				throw new Error('La distribución del pago no coincide con el subtotal de la cuenta.');
+			}
+			paidTotal = paymentAllocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+			const balanceByMethod = paymentAllocations.reduce((balances, allocation) => ({ ...balances, [allocation.methodId]: (balances[allocation.methodId] || 0) + allocation.amount }), {});
 			const shiftPointerSnapshot = await transaction.get(doc(db, 'configuracion', 'turnoActual'));
 			const activeShiftId = shiftPointerSnapshot.exists() && shiftPointerSnapshot.data().abierto ? shiftPointerSnapshot.data().turnoId : '';
 			if (!activeShiftId) throw new Error('No hay un turno abierto. Abre caja antes de registrar el pago.');
@@ -301,7 +345,7 @@ function Cuenta({ table, profile, onClose }) {
 				const product = inventoryProducts.get(item.id);
 				const quantity = Number(item.cantidad) || 0;
 				if (!product || quantity <= 0) throw new Error('No se pudo validar el producto de la factura.');
-				if (product.data.modoSabores === 'sabores') {
+				if (product.data.modoSabores === 'sabores' && product.data.enReversa !== true) {
 					let remaining = quantity;
 					const flavors = (product.data.sabores || []).map((flavor) => {
 						const stock = Number(typeof flavor === 'string' ? 0 : flavor.stock || 0);
@@ -309,7 +353,7 @@ function Cuenta({ table, profile, onClose }) {
 						remaining -= deducted;
 						if (deducted) {
 							const name = typeof flavor === 'string' ? flavor : flavor.nombre;
-						inventoryAdjustments[item.id] = inventoryAdjustments[item.id] || { cantidad: 0, sabores: {} };
+						inventoryAdjustments[item.id] = inventoryAdjustments[item.id] || { cantidad: 0, sabores: {}, enReversa: false };
 							inventoryAdjustments[item.id].sabores[name] = (inventoryAdjustments[item.id].sabores[name] || 0) + deducted;
 							inventoryAdjustments[item.id].cantidad += deducted;
 						}
@@ -317,11 +361,29 @@ function Cuenta({ table, profile, onClose }) {
 					});
 					if (remaining > 0) throw new Error(`No hay suficientes existencias de ${item.nombre}.`);
 					product.data = { ...product.data, sabores: flavors };
+				} else if (product.data.modoSabores === 'sabores') {
+					const flavorIndex = (product.data.sabores || []).length ? 0 : -1;
+					if (flavorIndex < 0) throw new Error(`No se puede registrar el inventario en reversa para ${item.nombre} sin sabores configurados.`);
+					const flavor = product.data.sabores[flavorIndex];
+					const flavorName = typeof flavor === 'string' ? flavor : flavor.nombre;
+					const flavors = product.data.sabores.map((entry, index) => {
+						if (index !== flavorIndex) return entry;
+						return typeof entry === 'string'
+							? { nombre: entry, stock: quantity }
+							: { ...entry, stock: Number(entry.stock || 0) + quantity };
+					});
+					product.data = { ...product.data, sabores: flavors };
+					inventoryAdjustments[item.id] = inventoryAdjustments[item.id] || { cantidad: 0, sabores: {}, enReversa: true };
+					inventoryAdjustments[item.id].sabores[flavorName] = (inventoryAdjustments[item.id].sabores[flavorName] || 0) + quantity;
+					inventoryAdjustments[item.id].cantidad += quantity;
+				} else if (product.data.enReversa === true) {
+					product.data = { ...product.data, stock: Number(product.data.stock || 0) + quantity };
+					inventoryAdjustments[item.id] = { cantidad: (inventoryAdjustments[item.id]?.cantidad || 0) + quantity, enReversa: true };
 				} else {
 					const stock = Number(product.data.stock || 0);
 					if (stock < quantity) throw new Error(`No hay suficientes existencias de ${item.nombre}.`);
 					product.data = { ...product.data, stock: stock - quantity };
-					inventoryAdjustments[item.id] = { cantidad: (inventoryAdjustments[item.id]?.cantidad || 0) + quantity };
+					inventoryAdjustments[item.id] = { cantidad: (inventoryAdjustments[item.id]?.cantidad || 0) + quantity, enReversa: false };
 				}
 			}
 			for (const [productId, product] of inventoryProducts) {
@@ -349,6 +411,9 @@ function Cuenta({ table, profile, onClose }) {
 					metodoId: allocation.methodId,
 					metodoNombre: methodData.nombre || allocation.nombre || method.nombre,
 					monto: Number(allocation.amount || allocation.monto || 0),
+					subtotal: Number(allocation.baseAmount || 0),
+					comision: Number(allocation.commissionAmount || 0),
+					comisionPorcentaje: Number(allocation.commissionPercentage || 0),
 					efectivoRecibido: Number(allocation.received || (methodData.tipo === 'efectivo' ? paymentDetails.received : 0) || 0),
 					cambio: Number(allocation.change || (methodData.tipo === 'efectivo' ? paymentDetails.change : 0) || 0),
 					denominaciones: methodData.tipo === 'efectivo' ? countDenominations(denominations) : [],
@@ -364,6 +429,8 @@ function Cuenta({ table, profile, onClose }) {
 				metodoPagoId: paymentAllocations.length === 1 ? paymentAllocations[0].methodId : 'multiple',
 				metodoPago: paymentAllocations.length === 1 ? paymentAllocations[0].method?.nombre || paymentAllocations[0].nombre || method.nombre : 'Múltiples métodos',
 				monto: paidTotal,
+				subtotal,
+				comision: paidTotal - subtotal,
 				pedido: paidOrder,
 				efectivoRecibido: paymentDetails.received || 0,
 				cambio: paymentDetails.change || 0,
@@ -380,6 +447,9 @@ function Cuenta({ table, profile, onClose }) {
 					nombre: methodData.nombre || allocation.nombre || method.nombre,
 					tipo: methodData.tipo || '',
 					monto: Number(allocation.amount || allocation.monto || 0),
+					subtotal: Number(allocation.baseAmount || 0),
+					comision: Number(allocation.commissionAmount || 0),
+					comisionPorcentaje: Number(allocation.commissionPercentage || 0),
 					efectivoRecibido: Number(allocation.received || (methodData.tipo === 'efectivo' ? paymentDetails.received : 0) || 0),
 					cambio: Number(allocation.change || (methodData.tipo === 'efectivo' ? paymentDetails.change : 0) || 0),
 					denominaciones: methodData.tipo === 'efectivo' ? countDenominations(allocation.denominations || paymentDetails.denominations || []) : [],
@@ -392,6 +462,8 @@ function Cuenta({ table, profile, onClose }) {
 				mesaNombre: table.label || `Mesa ${table.numero}`,
 				tipo: paidItems ? 'parcial' : 'completa',
 				monto: paidTotal,
+				subtotal,
+				comision: paidTotal - subtotal,
 				pedido: paidOrder,
 				metodoPagoId: invoiceMethods.length === 1 ? invoiceMethods[0].metodoId : 'multiple',
 				metodoPago: invoiceMethods.length === 1 ? invoiceMethods[0].nombre : 'Múltiples métodos',
@@ -437,7 +509,14 @@ function Cuenta({ table, profile, onClose }) {
 						<div className="account-order-heading"><FaShoppingCart aria-hidden="true" /><h2 id="order-title">Pedido</h2></div>
 						{cart.length === 0 ? <p className="account-empty">Aún no hay productos pedidos.</p> : <div className="account-cart">
 							{cart.map((item) => <div className="account-cart-item" key={item.lineId}>
-								<div><strong>{item.nombre}</strong><small>Agregado: {(item.horasPedido || [item.addedAt]).map(formatOrderDate).join(', ')}</small><span>${(Number(item.precioUnidad || 0) * item.cantidad).toLocaleString('es-CO')}</span></div>
+								<div className="account-cart-details">
+									<strong>{item.nombre}</strong>
+									<div className="account-cart-times" aria-label="Horarios en que se agregó">
+										<span className="account-cart-times-label">Agregado</span>
+										{getOrderTimeGroups(item).map(({ timestamp, quantity }) => <span className="account-cart-time" key={`${timestamp}-${quantity}`}>{formatOrderDate(timestamp)}{quantity > 1 && <strong> ×{quantity}</strong>}</span>)}
+									</div>
+									<span className="account-cart-price">${(Number(item.precioUnidad || 0) * item.cantidad).toLocaleString('es-CO')}</span>
+								</div>
 								<div className="account-quantity"><button type="button" aria-label={`Quitar ${item.nombre}`} onClick={() => changeQuantity(item.lineId, -1)}><FaMinus /></button><span>{item.cantidad}</span><button type="button" aria-label={`Agregar ${item.nombre}`} onClick={() => changeQuantity(item.lineId, 1)}><FaPlus /></button></div>
 							</div>)}
 						</div>}
@@ -456,7 +535,7 @@ function Cuenta({ table, profile, onClose }) {
 							<div className="account-product-list">
 								{visibleProducts.length === 0 ? <p className="account-empty">No hay productos disponibles.</p> : visibleProducts.map((product) => {
 									const stock = getProductStock(product);
-									const isOutOfStock = stock.total === 0;
+									const isOutOfStock = stock.total === 0 && product.enReversa !== true;
 									return <button className={`account-product${isOutOfStock ? ' account-product-out-of-stock' : ''}${animatedProductId === product.id ? ' account-product-added' : ''}`} type="button" key={product.id} onClick={() => addProduct(product)} disabled={isOutOfStock} title={stock.label} aria-label={`${product.nombre}, $${Number(product.precioUnidad || 0).toLocaleString('es-CO')}, ${stock.label}`}><span>{product.nombre}</span><strong>${Number(product.precioUnidad || 0).toLocaleString('es-CO')}</strong><span className="account-product-stock" aria-hidden="true">{stock.label}</span></button>;
 								})}
 							</div>

@@ -1,13 +1,49 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import App from './App';
+import { buildReport } from './components/reportes/reportes';
 import ExpiredScreen, { isServiceExpired } from './resources/ads/expired';
-import { formatThousandsInput } from './server/paymentMethods';
+import { amountBeforeCommission, amountCoveredByPayment, amountWithCommission, formatThousandsInput, paymentCommission } from './server/paymentMethods';
 
 test('formats balance values with thousands separators while preserving digits', () => {
    expect(formatThousandsInput('1234567')).toBe('1.234.567');
    expect(formatThousandsInput('1.234.567')).toBe('1.234.567');
    expect(formatThousandsInput('00012')).toBe('12');
    expect(formatThousandsInput('')).toBe('');
+});
+
+test('calculates payment commissions and finds the covered base for cash received', () => {
+  expect(paymentCommission(10000, 2.5)).toBe(250);
+  expect(amountWithCommission(10000, 2.5)).toBe(10250);
+  expect(amountWithCommission(amountBeforeCommission(10250, 2.5), 2.5)).toBeLessThanOrEqual(10250);
+  expect(amountWithCommission(amountBeforeCommission(10250, 2.5) + 1, 2.5)).toBeGreaterThan(10250);
+  expect(amountCoveredByPayment(10250, 10000, 2.5)).toBe(10000);
+  expect(amountWithCommission(10000, 0)).toBe(10000);
+});
+
+test('rounds the final charge to the nearest ten pesos, with five rounded up', () => {
+  expect(amountWithCommission(2000, 0.6)).toBe(2010);
+  expect(amountWithCommission(2000, 0.75)).toBe(2020);
+  expect(amountWithCommission(2000, 0.85)).toBe(2020);
+  expect(paymentCommission(2000, 0.6)).toBe(10);
+  expect(paymentCommission(2000, 0.75)).toBe(20);
+  expect(amountCoveredByPayment(2010, 2000, 0.6)).toBe(2000);
+});
+
+test('groups monthly expenses by uppercase category and keeps legacy uncategorized expenses', () => {
+  const report = buildReport('egresos', [
+    { tipo: 'egreso', categoria: 'INSUMOS', monto: 12000, creadoEn: new Date('2026-03-10T12:00:00') },
+    { tipo: 'egreso', categoria: 'INSUMOS', monto: 8000, creadoEn: new Date('2026-03-15T12:00:00') },
+    { tipo: 'egreso', categoria: 'SERVICIOS', monto: 5000, creadoEn: new Date('2026-03-20T12:00:00') },
+    { tipo: 'egreso', monto: 3000, creadoEn: new Date('2026-03-22T12:00:00') },
+  ], '2026-03-01', '2026-03-31');
+
+  expect(report.rows).toEqual([
+    { month: '2026-03', category: 'INSUMOS', count: 2, amount: 20000 },
+    { month: '2026-03', category: 'SERVICIOS', count: 1, amount: 5000 },
+    { month: '2026-03', category: 'SIN CATEGORÍA', count: 1, amount: 3000 },
+  ]);
+  expect(report.totalCount).toBe(4);
+  expect(report.totalAmount).toBe(28000);
 });
 
 test('expires the service at or after the Firestore timestamp', () => {

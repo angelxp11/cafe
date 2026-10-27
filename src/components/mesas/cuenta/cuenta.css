@@ -164,19 +164,44 @@
 	background: var(--color-background);
 }
 
-.account-cart-item > div:first-child {
+.account-cart-details {
 	display: grid;
-	gap: 4px;
+	min-width: 0;
+	gap: 7px;
 }
 
-.account-cart-item small {
+.account-cart-times {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 5px;
+}
+
+.account-cart-times-label {
 	color: var(--color-text-secondary);
 	font-size: var(--font-size-xs);
 }
 
-.account-cart-item span {
+.account-cart-time {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px 7px;
+	border-radius: 999px;
+	background: var(--color-surface);
 	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
+	white-space: nowrap;
+}
+
+.account-cart-time strong {
+	color: var(--color-primary);
+}
+
+.account-cart-price {
+	color: var(--color-total);
 	font-size: var(--font-size-sm);
+	font-weight: var(--font-semibold);
 }
 
 .account-quantity {

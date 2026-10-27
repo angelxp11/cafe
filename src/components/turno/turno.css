@@ -223,9 +223,46 @@
 	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
+.shift-view-switch {
+	display: flex;
+	width: 100%;
+	box-sizing: border-box;
+	gap: 4px;
+	margin: 0 0 16px;
+	padding: 4px;
+	border: 1px solid var(--color-border);
+	border-radius: 7px;
+	background: var(--color-background);
+}
+
+.shift-view-switch button {
+	flex: 1;
+	min-height: 38px;
+	padding: 0 14px;
+	border: 0;
+	border-radius: 5px;
+	background: transparent;
+	color: var(--color-text-secondary);
+	cursor: pointer;
+	font: inherit;
+	font-weight: var(--font-semibold);
+}
+
+.shift-view-switch button.active {
+	background: var(--color-surface);
+	color: var(--color-primary);
+	box-shadow: 0 1px 3px rgba(45, 33, 27, 0.16);
+}
+
+.shift-view-switch button:focus-visible {
+	outline: 2px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
 .shift-work-grid {
 	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
+	width: 100%;
+	grid-template-columns: minmax(0, 1fr);
 	align-items: start;
 	gap: 16px;
 }
@@ -239,6 +276,11 @@
 
 .shift-field {
 	margin-top: 14px;
+}
+
+.shift-field small {
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
 }
 
 .shift-close-totals {

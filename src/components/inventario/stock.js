@@ -1,5 +1,6 @@
 export function getLowStockItems(products) {
 	return products.flatMap((product) => {
+		if (product.enReversa === true) return [];
 		const configuredThreshold = Number(product.stockMinimo ?? 5);
 		const threshold = Number.isFinite(configuredThreshold) ? configuredThreshold : 5;
 		const stockEntries = product.modoSabores === 'sabores'

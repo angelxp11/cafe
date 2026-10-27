@@ -27,3 +27,12 @@ test('uses the default threshold for older products and ignores unknown stock va
 		{ productId: 'old', productName: 'ANTIGUO', flavorName: '', stock: 5, threshold: 5 },
 	]);
 });
+
+test('does not report reverse-inventory products as low stock', () => {
+	expect(getLowStockItems([
+		{ id: 'prepared', nombre: 'PREPARADO', stock: 0, stockMinimo: 5, enReversa: true },
+		{ id: 'regular', nombre: 'NORMAL', stock: 0, stockMinimo: 5 },
+	])).toEqual([
+		{ productId: 'regular', productName: 'NORMAL', flavorName: '', stock: 0, threshold: 5 },
+	]);
+});

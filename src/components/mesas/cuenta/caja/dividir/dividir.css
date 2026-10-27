@@ -138,6 +138,13 @@
 	font-size: 1.35rem;
 }
 
+.split-total small {
+	display: block;
+	margin-top: 5px;
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
+}
+
 .split-payments-heading {
 	display: flex;
 	align-items: center;
@@ -183,6 +190,18 @@
 .split-payment-fields {
 	display: grid;
 	gap: 8px;
+}
+
+.split-allocation-amount {
+	display: grid;
+	gap: 6px;
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
+}
+
+.split-commission-detail {
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
 }
 
 .split-payment-row select,

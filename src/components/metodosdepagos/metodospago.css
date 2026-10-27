@@ -22,7 +22,7 @@
 
 .payment-methods-form {
 	display: grid;
-	grid-template-columns: 1.4fr 1fr auto;
+	grid-template-columns: 1.4fr 1fr 1fr auto;
 	align-items: end;
 	gap: 12px;
 	margin-bottom: 24px;
@@ -42,6 +42,8 @@
 
 .payment-methods-form input,
 .payment-methods-form select {
+	width: 100%;
+	box-sizing: border-box;
 	min-height: 40px;
 	padding: 0 10px;
 	border: 1px solid var(--color-border);
@@ -84,6 +86,21 @@
 	align-items: center;
 	justify-content: space-between;
 	gap: 12px;
+}
+
+.payment-method-actions {
+	flex-wrap: wrap;
+	justify-content: flex-start;
+}
+
+.payment-method-commission {
+	margin: 0;
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-sm);
+}
+
+.payment-method-commission strong {
+	color: var(--color-primary);
 }
 
 .payment-method-card header strong {
@@ -165,6 +182,121 @@
 	border-radius: 4px;
 	background: var(--color-background);
 	font: inherit;
+}
+
+.payment-method-modal-backdrop {
+	position: fixed;
+	z-index: 1300;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	padding: 20px;
+	background: rgb(45 33 27 / 58%);
+}
+
+.payment-method-commission-modal {
+	display: grid;
+	width: min(460px, 100%);
+	gap: 16px;
+	padding: 24px;
+	border: 1px solid var(--color-border);
+	border-radius: 9px;
+	background: var(--color-surface);
+	box-shadow: 0 20px 55px rgb(45 33 27 / 25%);
+}
+
+.payment-method-commission-modal header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.payment-method-commission-modal header h2 {
+	margin: 0;
+	color: var(--color-text-primary);
+	font-size: var(--font-size-lg);
+}
+
+.payment-method-commission-modal header .app-eyebrow {
+	margin: 0 0 6px;
+}
+
+.payment-method-commission-modal label {
+	display: grid;
+	gap: 6px;
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-sm);
+	font-weight: var(--font-semibold);
+}
+
+.payment-method-commission-modal input {
+	width: 100%;
+	min-height: 42px;
+	box-sizing: border-box;
+	padding: 0 12px;
+	border: 1px solid var(--color-border);
+	border-radius: 5px;
+	background: var(--color-background);
+	color: var(--color-text-primary);
+	font: inherit;
+}
+
+.payment-method-commission-modal > small {
+	color: var(--color-text-secondary);
+	line-height: 1.5;
+}
+
+.payment-method-modal-close {
+	display: grid;
+	width: 34px;
+	height: 34px;
+	flex: 0 0 auto;
+	place-items: center;
+	border: 0;
+	border-radius: 5px;
+	background: transparent;
+	color: var(--color-text-secondary);
+	cursor: pointer;
+	font-size: 1.5rem;
+}
+
+.payment-method-modal-close:hover,
+.payment-method-modal-close:focus-visible {
+	background: var(--color-hover);
+	color: var(--color-primary);
+	outline: none;
+}
+
+.payment-method-modal-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 4px;
+}
+
+.payment-method-modal-actions button {
+	min-height: 38px;
+	padding: 0 13px;
+	border: 1px solid var(--color-border);
+	border-radius: 4px;
+	background: var(--color-background);
+	color: var(--color-text-primary);
+	cursor: pointer;
+	font: inherit;
+	font-size: var(--font-size-sm);
+}
+
+.payment-method-modal-actions button:last-child {
+	border-color: var(--button-primary);
+	background: var(--button-primary);
+	color: var(--color-text-light);
+}
+
+.payment-method-modal-actions button:disabled,
+.payment-method-modal-close:disabled {
+	cursor: wait;
+	opacity: 0.65;
 }
 
 .payment-method-edit-form > div {

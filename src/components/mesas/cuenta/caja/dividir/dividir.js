@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { FaMinus, FaPlus, FaTimes } from 'react-icons/fa';
+import { amountCoveredByPayment, amountWithCommission, paymentCommission } from '../../../../../server/paymentMethods';
 import toast from '../../../../../resources/toast/toast';
 import './dividir.css';
 
@@ -56,15 +57,20 @@ function Dividir({ items, methods, defaultMethodId, onClose, onConfirm }) {
 	const nonCashTotal = paymentRows.reduce((sum, row) => sum + (row.isCash ? 0 : row.amount), 0);
 	let remainingCashAmount = Math.max(0, subtotal - nonCashTotal);
 	const paymentRowsWithAmounts = paymentRows.map((row) => {
-		if (!row.isCash) return { ...row, change: 0 };
-		const amount = Math.min(row.received, remainingCashAmount);
-		remainingCashAmount -= amount;
-		return { ...row, amount, change: row.received - amount };
+		const baseAmount = row.isCash
+			? amountCoveredByPayment(row.received, remainingCashAmount, row.method?.comision)
+			: row.amount;
+		remainingCashAmount -= row.isCash ? baseAmount : 0;
+		const commissionAmount = paymentCommission(baseAmount, row.method?.comision);
+		const amountToCharge = amountWithCommission(baseAmount, row.method?.comision);
+		return { ...row, baseAmount, commissionAmount, amountToCharge, change: row.isCash ? row.received - amountToCharge : 0 };
 	});
-	const allocatedTotal = paymentRowsWithAmounts.reduce((sum, row) => sum + row.amount, 0);
+	const allocatedTotal = paymentRowsWithAmounts.reduce((sum, row) => sum + row.baseAmount, 0);
 	const cashReceived = paymentRowsWithAmounts.reduce((sum, row) => sum + (row.isCash ? row.received : 0), 0);
 	const cashChange = paymentRowsWithAmounts.reduce((sum, row) => sum + row.change, 0);
 	const pendingAmount = subtotal - allocatedTotal;
+	const payableTotal = paymentRowsWithAmounts.reduce((sum, row) => sum + row.amountToCharge, 0);
+	const commissionTotal = paymentRowsWithAmounts.reduce((sum, row) => sum + row.commissionAmount, 0);
 
 	function changeQuantity(item, amount) {
 		setQuantities((current) => {
@@ -107,7 +113,7 @@ function Dividir({ items, methods, defaultMethodId, onClose, onConfirm }) {
 	async function confirmSplit() {
 		if (!selectedItems.length || confirming) return;
 		const methodIds = allocations.map((allocation) => allocation.methodId);
-		if (allocations.some((allocation, index) => !allocation.methodId || methodIds.indexOf(allocation.methodId) !== index || paymentRowsWithAmounts[index].amount <= 0 || (paymentRowsWithAmounts[index].isCash && paymentRowsWithAmounts[index].received <= 0)) || allocatedTotal !== subtotal) {
+		if (allocations.some((allocation, index) => !allocation.methodId || methodIds.indexOf(allocation.methodId) !== index || paymentRowsWithAmounts[index].baseAmount <= 0 || (paymentRowsWithAmounts[index].isCash && paymentRowsWithAmounts[index].received <= 0)) || allocatedTotal !== subtotal) {
 			toast.warning('Distribuye el total exacto entre los métodos de pago.');
 			return;
 		}
@@ -115,7 +121,8 @@ function Dividir({ items, methods, defaultMethodId, onClose, onConfirm }) {
 		try {
 			const paidAllocations = paymentRowsWithAmounts.map((row) => ({
 				...row.allocation,
-				amount: row.amount,
+				amount: row.baseAmount,
+				baseAmount: row.baseAmount,
 				received: row.received,
 				change: row.change,
 				method: row.method,
@@ -146,11 +153,11 @@ function Dividir({ items, methods, defaultMethodId, onClose, onConfirm }) {
 							<div className="split-quantity"><button type="button" aria-label={`Quitar ${item.nombre}`} onClick={() => changeQuantity(item, -1)} disabled={!quantities[item.lineId]}><FaMinus /></button><span>{quantities[item.lineId] || 0}</span><button type="button" aria-label={`Agregar ${item.nombre}`} onClick={() => changeQuantity(item, 1)} disabled={(quantities[item.lineId] || 0) >= item.cantidad}><FaPlus /></button></div>
 						</article>)}
 					</div>
-					<div className="split-total"><span>Total de esta factura</span><strong>${subtotal.toLocaleString('es-CO')}</strong></div>
+					<div className="split-total"><span>Total de esta factura{commissionTotal > 0 && <small>Comisión: ${commissionTotal.toLocaleString('es-CO')}</small>}</span><strong>${payableTotal.toLocaleString('es-CO')}</strong></div>
 					<div className="split-payments-heading"><strong>¿Cómo pagará esta factura?</strong><button type="button" onClick={addAllocation} disabled={allocations.length >= methods.length}>+ Otro método</button></div>
 					<div className="split-payments">
 						{paymentRowsWithAmounts.map((row) => { const { allocation, index, isCash } = row; return <div className="split-payment-row" key={index}>
-							<div className="split-payment-fields"><select aria-label={`Método de pago ${index + 1}`} value={allocation.methodId} onChange={(event) => changeAllocationMethod(index, event.target.value)}>{methods.map((methodOption) => <option key={methodOption.id} value={methodOption.id} disabled={allocations.some((other, otherIndex) => otherIndex !== index && other.methodId === methodOption.id)}>{methodOption.nombre}</option>)}</select>{isCash ? <><div className="split-denomination-grid">{denominations.map((denomination) => <button className="split-denomination" type="button" key={denomination.value} onClick={() => addAllocationDenomination(index, denomination.value)}><img src={denomination.image} alt={`Billete de ${denomination.value.toLocaleString('es-CO')} pesos`} /><strong>${denomination.value.toLocaleString('es-CO')}</strong></button>)}</div><div className="split-cash-total"><span>Recibido <strong>${row.received.toLocaleString('es-CO')}</strong> · Cambio <strong>${row.change.toLocaleString('es-CO')}</strong></span><button type="button" onClick={() => clearAllocationDenominations(index)} disabled={!allocation.denominations?.length}>Borrar</button></div></> : <input aria-label={`Monto del método ${index + 1}`} type="text" inputMode="numeric" value={formatAmount(row.inputValue)} onChange={(event) => updateAllocation(index, 'amount', event.target.value)} placeholder="Monto" />}</div>
+							<div className="split-payment-fields"><select aria-label={`Método de pago ${index + 1}`} value={allocation.methodId} onChange={(event) => changeAllocationMethod(index, event.target.value)}>{methods.map((methodOption) => <option key={methodOption.id} value={methodOption.id} disabled={allocations.some((other, otherIndex) => otherIndex !== index && other.methodId === methodOption.id)}>{methodOption.nombre}</option>)}</select>{isCash ? <><div className="split-denomination-grid">{denominations.map((denomination) => <button className="split-denomination" type="button" key={denomination.value} onClick={() => addAllocationDenomination(index, denomination.value)}><img src={denomination.image} alt={`Billete de ${denomination.value.toLocaleString('es-CO')} pesos`} /><strong>${denomination.value.toLocaleString('es-CO')}</strong></button>)}</div><div className="split-cash-total"><span>Recibido <strong>${row.received.toLocaleString('es-CO')}</strong> · Cambio <strong>${row.change.toLocaleString('es-CO')}</strong></span><button type="button" onClick={() => clearAllocationDenominations(index)} disabled={!allocation.denominations?.length}>Borrar</button></div></> : <label className="split-allocation-amount">Monto antes de comisión<input aria-label={`Monto del método ${index + 1}`} type="text" inputMode="numeric" value={formatAmount(row.inputValue)} onChange={(event) => updateAllocation(index, 'amount', event.target.value)} placeholder="Monto" /></label>}<small className="split-commission-detail">Comisión: ${row.commissionAmount.toLocaleString('es-CO')} · Se cobra: ${row.amountToCharge.toLocaleString('es-CO')}</small></div>
 							{allocations.length > 1 && <button type="button" aria-label="Quitar método de pago" onClick={() => removeAllocation(index)}><FaTimes /></button>}
 						</div>; })}
 					</div>

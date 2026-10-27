@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { collection, deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { FaDownload, FaEdit, FaPlus, FaTrash } from 'react-icons/fa';
 import { db } from '../../server/api';
@@ -10,7 +10,7 @@ import './inventario.css';
 const emptyProduct = {
 	identificador: '', categoria: '', nombre: '', venta: 'unidad', unidadesPorPaquete: '', unidadesPorPaqueteAbastecimiento: '',
 	precioUnidad: '', precioPaquete: '', abastecimiento: 'unidad', mayoreo: '', stock: '10', stockMinimo: '5', tipo: 'final', ingredientes: [],
-	modoSabores: 'general', sabores: [],
+	modoSabores: 'general', sabores: [], enReversa: false,
 };
 
 function getNextIdentifier(products) {
@@ -47,6 +47,9 @@ function Inventario({ profile }) {
 	const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
 	const [searchTerm, setSearchTerm] = useState('');
 	const [selectedCategory, setSelectedCategory] = useState('Todas');
+	const tableTopScrollRef = useRef(null);
+	const tableScrollRef = useRef(null);
+	const tableRef = useRef(null);
 	const isAdmin = profile?.rol === 'admin';
 	const lowStockItems = getLowStockItems(products);
 	const lowStockProductIds = new Set(lowStockItems.map((item) => item.productId));
@@ -69,6 +72,35 @@ function Inventario({ profile }) {
 	});
 	const filteredProductIds = new Set(filteredProducts.map((product) => product.id));
 	const filteredLowStockItems = lowStockItems.filter((item) => filteredProductIds.has(item.productId));
+
+	useEffect(() => {
+		const topScroll = tableTopScrollRef.current;
+		const tableScroll = tableScrollRef.current;
+		const table = tableRef.current;
+		if (!topScroll || !tableScroll || !table) return undefined;
+
+		const updateTopScrollWidth = () => {
+			topScroll.firstElementChild.style.width = `${table.scrollWidth}px`;
+		};
+		const syncFromTop = () => {
+			if (tableScroll.scrollLeft !== topScroll.scrollLeft) tableScroll.scrollLeft = topScroll.scrollLeft;
+		};
+		const syncFromTable = () => {
+			if (topScroll.scrollLeft !== tableScroll.scrollLeft) topScroll.scrollLeft = tableScroll.scrollLeft;
+		};
+
+		updateTopScrollWidth();
+		topScroll.addEventListener('scroll', syncFromTop);
+		tableScroll.addEventListener('scroll', syncFromTable);
+		const resizeObserver = new ResizeObserver(updateTopScrollWidth);
+		resizeObserver.observe(table);
+
+		return () => {
+			topScroll.removeEventListener('scroll', syncFromTop);
+			tableScroll.removeEventListener('scroll', syncFromTable);
+			resizeObserver.disconnect();
+		};
+	}, [products, searchTerm, selectedCategory, isAdmin]);
 
 	useEffect(() => {
 		const unsubscribe = onSnapshot(collection(db, 'inventario'), (snapshot) => {
@@ -122,7 +154,7 @@ function Inventario({ profile }) {
 			return;
 		}
 
-		const headers = ['Identificador', 'Nombre', 'Categoría', 'Sabores', 'Venta', 'Precio por unidad', 'Precio paquete', 'Unidades por paquete', 'Abastecimiento', 'Unidades por mayoreo', 'Stock', 'Tipo', 'Ingredientes'];
+		const headers = ['Identificador', 'Nombre', 'Categoría', 'Sabores', 'Venta', 'Precio por unidad', 'Precio paquete', 'Unidades por paquete', 'Abastecimiento', 'Unidades por mayoreo', 'Stock', 'Tipo', 'En reversa', 'Ingredientes'];
 		const rows = products.map((product) => [
 			product.identificador,
 			product.nombre,
@@ -136,6 +168,7 @@ function Inventario({ profile }) {
 			product.unidadesMayoreo || 0,
 			product.stock || 0,
 			product.tipo === 'preparable' ? 'PREPARAR' : 'FINAL',
+			product.enReversa ? 'SI' : 'NO',
 			(product.ingredientes || []).map((ingredient) => `${ingredient.nombre} (${ingredient.medida})`).join(' | '),
 		]);
 		const csv = [headers, ...rows].map((row) => row.map(csvValue).join(';')).join('\r\n');
@@ -181,13 +214,15 @@ function Inventario({ profile }) {
 				</li>)}</ul>
 			</section>}
 			{products.length === 0 ? <div className="inventory-empty"><h2>No hay productos</h2><p>Agrega el primer producto al inventario.</p></div> : filteredProducts.length === 0 ? <div className="inventory-empty"><h2>Sin resultados</h2><p>No hay productos que coincidan con los filtros.</p></div> : (
-				<div className="inventory-table-wrapper"><table className="inventory-table">
-					<thead><tr><th>Identificador</th><th>Producto</th><th>Categoría</th><th>Sabores</th><th>Venta</th><th>Precio unidad</th><th>Abastecimiento</th><th>Stock</th><th>Tipo</th>{isAdmin && <th>Acciones</th>}</tr></thead>
+				<div className="inventory-table-wrapper">
+					<div className="inventory-table-top-scroll" ref={tableTopScrollRef} aria-hidden="true"><div /></div>
+					<div className="inventory-table-scroll" ref={tableScrollRef}><table className="inventory-table" ref={tableRef}>
+					<thead><tr><th>Identificador</th><th>Producto</th><th>Categoría</th><th>Sabores</th><th>Venta</th><th>Precio unidad</th><th>Abastecimiento</th><th>Stock</th><th>Tipo</th><th>En reversa</th>{isAdmin && <th>Acciones</th>}</tr></thead>
 					<tbody>{filteredProducts.map((product) => <tr key={product.id} className={lowStockProductIds.has(product.id) ? 'inventory-row-low-stock' : undefined}>
-						<td>{product.identificador}</td><td><strong>{product.nombre}</strong>{product.tipo === 'preparable' && <small> {product.ingredientes?.length || 0} ingredientes</small>}</td><td>{product.categoria}</td><td>{product.modoSabores === 'sabores' ? product.sabores?.map((flavor) => typeof flavor === 'string' ? flavor : `${flavor.nombre} (${flavor.stock})`).join(', ') : 'GENERAL'}</td><td>{product.venta}</td><td>${formatPrice(product.precioUnidad)}</td><td>{product.abastecimiento}{product.unidadesMayoreo ? ` (${product.unidadesMayoreo})` : ''}</td><td>{product.modoSabores === 'sabores' ? product.sabores?.map((flavor) => typeof flavor === 'string' ? `${flavor}: -` : `${flavor.nombre}: ${flavor.stock}`).join(', ') : product.stock}</td><td>{product.tipo === 'preparable' ? 'Preparar' : 'Final'}</td>
+						<td>{product.identificador}</td><td><strong>{product.nombre}</strong>{product.tipo === 'preparable' && <small> {product.ingredientes?.length || 0} ingredientes</small>}</td><td>{product.categoria}</td><td>{product.modoSabores === 'sabores' ? product.sabores?.map((flavor) => typeof flavor === 'string' ? flavor : `${flavor.nombre} (${flavor.stock})`).join(', ') : 'GENERAL'}</td><td>{product.venta}</td><td>${formatPrice(product.precioUnidad)}</td><td>{product.abastecimiento}{product.unidadesMayoreo ? ` (${product.unidadesMayoreo})` : ''}</td><td>{product.modoSabores === 'sabores' ? product.sabores?.map((flavor) => typeof flavor === 'string' ? `${flavor}: -` : `${flavor.nombre}: ${flavor.stock}`).join(', ') : product.stock}</td><td>{product.tipo === 'preparable' ? 'Preparar' : 'Final'}</td><td>{product.enReversa ? 'Sí' : 'No'}</td>
 						{isAdmin && <td className="inventory-actions"><button type="button" aria-label={`Editar ${product.nombre}`} onClick={() => openEdit(product)}><FaEdit /></button><button type="button" aria-label={`Eliminar ${product.nombre}`} onClick={() => removeProduct(product)}><FaTrash /></button></td>}
 					</tr>)}</tbody>
-				</table></div>
+				</table></div></div>
 			)}
 			{modalOpen && isAdmin && <ProductModal product={editingProduct} categories={categories} onClose={() => setModalOpen(false)} />}
 		</section>
@@ -221,7 +256,7 @@ function ProductModal({ product, categories, onClose }) {
 			const packagePrice = form.venta === 'paquete' ? Number(form.precioPaquete) || 0 : 0;
 			const stockThreshold = Number(form.stockMinimo);
 			if (form.stockMinimo === '' || !Number.isFinite(stockThreshold) || stockThreshold < 0) { toast.warning('Indica un umbral de notificación de stock válido.'); return; }
-			const data = { identificador: identifier, nombre: form.nombre.trim().toLocaleUpperCase('es-ES'), categoria: category, modoSabores: form.modoSabores, sabores: form.modoSabores === 'sabores' ? form.sabores.filter((flavor) => flavor.nombre.trim()).map((flavor) => ({ nombre: flavor.nombre.trim().toLocaleUpperCase('es-ES'), stock: Number(flavor.stock) || 0 })) : [], venta: form.venta, precioUnidad: form.venta === 'paquete' && unitsPerPackage ? packagePrice / unitsPerPackage : Number(form.precioUnidad) || 0, precioPaquete: packagePrice, unidadesPorPaquete: unitsPerPackage, unidadesPorPaqueteAbastecimiento: supplyPackageUnits, abastecimiento: form.abastecimiento, unidadesMayoreo: form.abastecimiento === 'mayoreo' ? Number(form.mayoreo) || 0 : 0, stock: form.modoSabores === 'sabores' ? 0 : Number(form.stock) || 0, stockMinimo: stockThreshold, tipo: form.tipo, ingredientes: form.tipo === 'preparable' ? form.ingredientes.map((item) => ({ nombre: item.nombre.trim().toLocaleUpperCase('es-ES'), medida: item.medida.trim() })) : [] };
+			const data = { identificador: identifier, nombre: form.nombre.trim().toLocaleUpperCase('es-ES'), categoria: category, modoSabores: form.modoSabores, sabores: form.modoSabores === 'sabores' ? form.sabores.filter((flavor) => flavor.nombre.trim()).map((flavor) => ({ nombre: flavor.nombre.trim().toLocaleUpperCase('es-ES'), stock: Number(flavor.stock) || 0 })) : [], venta: form.venta, precioUnidad: form.venta === 'paquete' && unitsPerPackage ? packagePrice / unitsPerPackage : Number(form.precioUnidad) || 0, precioPaquete: packagePrice, unidadesPorPaquete: unitsPerPackage, unidadesPorPaqueteAbastecimiento: supplyPackageUnits, abastecimiento: form.abastecimiento, unidadesMayoreo: form.abastecimiento === 'mayoreo' ? Number(form.mayoreo) || 0 : 0, stock: form.modoSabores === 'sabores' ? 0 : Number(form.stock) || 0, stockMinimo: stockThreshold, tipo: form.tipo, enReversa: form.enReversa === true, ingredientes: form.tipo === 'preparable' ? form.ingredientes.map((item) => ({ nombre: item.nombre.trim().toLocaleUpperCase('es-ES'), medida: item.medida.trim() })) : [] };
 			await setDoc(doc(db, 'inventario', identifier), data);
 			await setDoc(doc(db, 'categorias', category), { nombre: category }, { merge: true });
 			toast.success(`Producto ${isEditing ? 'actualizado' : 'creado'}.`);
@@ -240,6 +275,7 @@ function ProductModal({ product, categories, onClose }) {
 			<div className="inventory-form-grid"><label>Forma de venta<select value={form.venta} onChange={(event) => update('venta', event.target.value)}><option value="unidad">Por unidad</option><option value="paquete">Por paquete</option></select></label>{form.venta === 'paquete' && <label>Unidades por paquete<input type="text" inputMode="numeric" pattern="[0-9]*" value={form.unidadesPorPaquete} onChange={(event) => update('unidadesPorPaquete', getPriceDigits(event.target.value))} /></label>}</div>
 			<div className="inventory-form-grid"><label>Abastecimiento<select value={form.abastecimiento} onChange={(event) => update('abastecimiento', event.target.value)}><option value="unidad">Por unidad</option><option value="paquete">Por paquete</option><option value="mayoreo">Por mayoreo</option></select></label>{form.abastecimiento === 'paquete' && <label>Unidades por paquete de abastecimiento<input type="text" inputMode="numeric" pattern="[0-9]*" value={form.unidadesPorPaqueteAbastecimiento || form.unidadesPorPaquete} onChange={(event) => update('unidadesPorPaqueteAbastecimiento', getPriceDigits(event.target.value))} /></label>}{form.abastecimiento === 'mayoreo' && <label>Unidades por mayoreo<input type="text" inputMode="numeric" pattern="[0-9]*" value={form.mayoreo} onChange={(event) => update('mayoreo', getPriceDigits(event.target.value))} /></label>}</div>
 			<div className="inventory-form-grid">{form.modoSabores === 'general' && <label>Stock<input type="text" inputMode="numeric" pattern="[0-9]*" value={form.stock} onChange={(event) => update('stock', getPriceDigits(event.target.value))} /></label>}<label>Notificar stock cuando sea igual o menor a<input type="text" inputMode="numeric" pattern="[0-9]*" required value={form.stockMinimo} onChange={(event) => update('stockMinimo', getPriceDigits(event.target.value))} /><small>Se aplica al stock general y a cada sabor.</small></label></div>
+			<fieldset><legend>Control de inventario</legend><label className="inventory-radio"><input type="checkbox" checked={form.enReversa === true} onChange={(event) => update('enReversa', event.target.checked)} /> En reversa: al vender, sumar la cantidad al stock en lugar de descontarla</label><small>Úsalo para llevar el conteo de productos preparados. Estos productos no se bloquean por stock en cero ni generan alertas de stock bajo.</small></fieldset>
 			<fieldset><legend>Tipo de producto</legend><label className="inventory-radio"><input type="radio" checked={form.tipo === 'final'} onChange={() => update('tipo', 'final')} /> Producto final</label><label className="inventory-radio"><input type="radio" checked={form.tipo === 'preparable'} onChange={() => update('tipo', 'preparable')} /> Se debe preparar</label></fieldset>
 			{form.tipo === 'preparable' && <fieldset><legend>Ingredientes y medidas</legend>{form.ingredientes.map((item, index) => <div className="ingredient-row" key={index}><input aria-label="Ingrediente" placeholder="Ingrediente" value={item.nombre} onChange={(event) => updateIngredient(index, 'nombre', event.target.value.toLocaleUpperCase('es-ES'))} onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }} /><input aria-label="Medida" placeholder="Ej. 20 ml" value={item.medida} onChange={(event) => updateIngredient(index, 'medida', event.target.value)} /><button type="button" aria-label="Eliminar ingrediente" onClick={() => removeIngredient(index)}>×</button></div>)}<button className="add-ingredient" type="button" onClick={addIngredient}>+ Añadir ingrediente</button></fieldset>}
 			<button className="auth-submit" type="submit" disabled={saving}>{saving ? 'Guardando...' : 'Guardar producto'}</button>

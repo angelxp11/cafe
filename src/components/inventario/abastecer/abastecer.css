@@ -103,6 +103,22 @@
 	gap: 16px;
 }
 
+.replenishment-form-errors {
+	padding: 12px 14px;
+	border: 1px solid var(--color-error);
+	border-radius: 6px;
+	background: var(--color-surface);
+	color: var(--color-error);
+	font-size: var(--font-size-sm);
+}
+
+.replenishment-form-errors ul {
+	display: grid;
+	gap: 4px;
+	margin: 8px 0 0;
+	padding-left: 20px;
+}
+
 .replenishment-catalog {
 	padding: 14px;
 	border: 1px solid var(--color-border);
@@ -421,6 +437,16 @@
 	opacity: .55;
 }
 
+.replenishment-receive-button-unavailable {
+	border-style: dashed;
+	cursor: not-allowed;
+	opacity: .6;
+}
+
+.replenishment-receive-button-unavailable:hover {
+	background: var(--color-background);
+}
+
 .replenishment-modal {
 	width: min(100%, 680px);
 }
@@ -443,11 +469,66 @@
 .replenishment-checkbox {
 	display: flex !important;
 	align-items: center;
-	gap: 9px !important;
+	gap: 12px !important;
+	margin: 0;
+	padding: 14px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background: var(--color-background);
+	cursor: pointer;
+	transition: border-color .16s ease, background-color .16s ease;
 }
 
 .replenishment-checkbox input {
-	min-height: auto;
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	clip-path: inset(50%);
+}
+
+.replenishment-checkbox:focus-within {
+	outline: 2px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+.replenishment-checkbox-checked {
+	border-color: var(--color-primary);
+	background: var(--color-selected);
+}
+
+.replenishment-checkbox-indicator {
+	display: grid;
+	flex: 0 0 24px;
+	width: 24px;
+	height: 24px;
+	place-items: center;
+	border: 2px solid var(--color-border);
+	border-radius: 6px;
+	background: var(--color-surface);
+	color: var(--color-primary);
+}
+
+.replenishment-checkbox-checked .replenishment-checkbox-indicator {
+	border-color: var(--color-primary);
+}
+
+.replenishment-checkbox-copy {
+	display: grid;
+	gap: 3px;
+}
+
+.replenishment-checkbox-copy strong {
+	color: var(--color-text-primary);
+	font-size: var(--font-size-sm);
+}
+
+.replenishment-checkbox-copy small {
+	color: var(--color-text-secondary);
+	font-size: var(--font-size-xs);
+	font-weight: var(--font-regular);
 }
 
 @media (max-width: 640px) {

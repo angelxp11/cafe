@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { collection, doc, onSnapshot, query, runTransaction, serverTimestamp, where } from 'firebase/firestore';
-import { FaClipboardList, FaPlus, FaPrint, FaTrash, FaTruck } from 'react-icons/fa';
+import { FaCheck, FaClipboardList, FaPlus, FaPrint, FaTrash, FaTruck } from 'react-icons/fa';
 import { auth, db } from '../../../server/api';
 import { shiftBalance } from '../../../server/paymentMethods';
 import LoadingScreen from '../../../resources/loading/LoadingScreen';
@@ -82,6 +82,8 @@ function Abastecer({ profile }) {
 	const [productsLoaded, setProductsLoaded] = useState(false);
 	const [mode, setMode] = useState('');
 	const [busy, setBusy] = useState(false);
+	const [orderErrors, setOrderErrors] = useState([]);
+	const submittingOrder = useRef(false);
 	const [orderLines, setOrderLines] = useState([]);
 	const [productSearch, setProductSearch] = useState('');
 	const [categoryFilter, setCategoryFilter] = useState('Todas');
@@ -153,6 +155,7 @@ function Abastecer({ profile }) {
 
 	function addProductToCart(product) {
 		if (orderLines.some((line) => line.productoId === product.id)) return;
+		setOrderErrors([]);
 		const modes = supplyModes(product);
 		const defaultMode = modes.some((item) => item.value === product.abastecimiento) ? product.abastecimiento : 'unidad';
 		setOrderLines((current) => [...current, {
@@ -166,10 +169,12 @@ function Abastecer({ profile }) {
 	}
 
 	function updateOrderLine(index, field, value) {
+		setOrderErrors([]);
 		setOrderLines((current) => current.map((line, lineIndex) => lineIndex === index ? { ...line, [field]: value } : line));
 	}
 
 	function addFlavorToLine(index) {
+		setOrderErrors([]);
 		setOrderLines((current) => current.map((line, lineIndex) => {
 			const flavors = Array.isArray(line.sabores) ? line.sabores : line.sabor ? [{ sabor: line.sabor, cantidad: line.cantidad || '1' }] : [];
 			if (lineIndex !== index || !line.nuevoSabor || flavors.some((flavor) => flavor.sabor === line.nuevoSabor)) return line;
@@ -177,28 +182,68 @@ function Abastecer({ profile }) {
 		}));
 	}
 
+	function removeOrderLine(index) {
+		setOrderErrors([]);
+		setOrderLines((current) => current.filter((_, lineIndex) => lineIndex !== index));
+	}
+
 	function closeModal() {
 		if (busy) return;
 		setMode('');
 		setSelectedOrder(null);
+		setOrderErrors([]);
 	}
 
 	async function createOrder(event) {
 		event.preventDefault();
-		if (!canAccessReplenishment) return;
+		if (!canAccessReplenishment || submittingOrder.current) return;
+		submittingOrder.current = true;
 		const lines = cartLines.flatMap((line) => line.sabores.length
 			? line.sabores.map((flavor) => ({ ...line, sabor: flavor.sabor, cantidad: flavor.cantidad }))
 			: [{ ...line, sabor: '', cantidad: line.cantidad }]);
-		if (!lines.length || lines.some((line) => !/^\d+$/.test(String(line.cantidad)) || Number(line.cantidad) < 1)) {
-			toast.warning('Agrega productos y cantidades válidas al carrito.');
-			return;
-		}
-		if (cartLines.some((line) => {
+		const validationErrors = [];
+		if (!cartLines.length) validationErrors.push('Agrega al menos un producto al carrito.');
+		cartLines.forEach((line) => {
 			const product = products.find((item) => item.id === line.productoId);
-			return !product || (product.modoSabores === 'sabores' && !line.sabores.length)
-				|| (line.modoAbastecimiento === 'mayoreo' && (!/^\d+$/.test(line.unidadesMayoreo) || Number(line.unidadesMayoreo) < 1));
-		})) {
-			toast.warning('Agrega al menos un sabor y configura las unidades por mayoreo cuando corresponda.');
+			const productName = product?.nombre || 'Producto eliminado';
+			if (!product) {
+				validationErrors.push(`${productName}: quítalo del carrito porque ya no existe en el inventario.`);
+				return;
+			}
+			if (!supplyModes(product).some((option) => option.value === line.modoAbastecimiento)) {
+				validationErrors.push(`${productName}: selecciona una forma de compra válida.`);
+			}
+			if (product.modoSabores === 'sabores' && !line.sabores.length) {
+				validationErrors.push(`${productName}: agrega al menos un sabor.`);
+			}
+			const quantities = product.modoSabores === 'sabores'
+				? line.sabores.map((flavor) => ({ name: flavor.sabor, quantity: flavor.cantidad }))
+				: [{ name: '', quantity: line.cantidad }];
+			quantities.forEach(({ name, quantity }) => {
+				const label = name ? `${productName} · ${name}` : productName;
+				if (product.modoSabores === 'sabores'
+					&& !product.sabores?.some((flavor) => (typeof flavor === 'string' ? flavor : flavor.nombre) === name)) {
+					validationErrors.push(`${label}: selecciona un sabor válido.`);
+				}
+				if (!/^\d+$/.test(String(quantity)) || Number(quantity) < 1) {
+					validationErrors.push(`${label}: indica una cantidad de al menos 1.`);
+				}
+			});
+			if (line.modoAbastecimiento === 'mayoreo'
+				&& (!/^\d+$/.test(line.unidadesMayoreo) || Number(line.unidadesMayoreo) < 1)) {
+				validationErrors.push(`${productName}: indica cuántas unidades incluye cada mayoreo.`);
+			}
+			const unitsPerPurchase = line.modoAbastecimiento === 'mayoreo'
+				? Number(line.unidadesMayoreo)
+				: supplyUnits(product, line.modoAbastecimiento);
+			if (!Number.isFinite(unitsPerPurchase) || unitsPerPurchase < 1) {
+				validationErrors.push(`${productName}: configura las unidades de la forma de compra seleccionada.`);
+			}
+		});
+		if (validationErrors.length) {
+			setOrderErrors(validationErrors);
+			toast.warning(validationErrors[0]);
+			submittingOrder.current = false;
 			return;
 		}
 		setBusy(true);
@@ -207,10 +252,11 @@ function Abastecer({ profile }) {
 			await runTransaction(db, async (transaction) => {
 				const pointerReference = doc(db, 'configuracion', 'turnoActual');
 				const pointerSnapshot = await transaction.get(pointerReference);
-				if (!pointerSnapshot.exists() || pointerSnapshot.data().abierto !== true) throw new Error('Abre un turno antes de crear un pedido.');
-				const shiftId = pointerSnapshot.data().turnoId;
-				const shiftSnapshot = await transaction.get(doc(db, 'turnos', shiftId));
-				if (!shiftSnapshot.exists() || shiftSnapshot.data().abierto !== true) throw new Error('El turno ya no está abierto.');
+				const shiftId = pointerSnapshot.exists() && pointerSnapshot.data().abierto === true ? pointerSnapshot.data().turnoId : '';
+				if (shiftId) {
+					const shiftSnapshot = await transaction.get(doc(db, 'turnos', shiftId));
+					if (!shiftSnapshot.exists() || shiftSnapshot.data().abierto !== true) throw new Error('El turno ya no está abierto.');
+				}
 				const productIds = [...new Set(lines.map((line) => line.productoId))];
 				const productSnapshots = await Promise.all(productIds.map((id) => transaction.get(doc(db, 'inventario', id))));
 				const productsById = new Map(productSnapshots.filter((snapshot) => snapshot.exists()).map((snapshot) => [snapshot.id, snapshot.data()]));
@@ -238,16 +284,20 @@ function Abastecer({ profile }) {
 					solicitadoPor: employeeName,
 					solicitadoPorCorreo: employeeEmail,
 					solicitadoEn: serverTimestamp(),
-					turnoPedidoId: shiftId,
+					...(shiftId ? { turnoPedidoId: shiftId } : {}),
 				});
 			});
 			setOrderLines([]);
 			setMode('');
+			setOrderErrors([]);
 			toast.success('Pedido creado. El inventario no se modificó.');
 		} catch (error) {
-			toast.error(error.message || 'No se pudo crear el pedido.');
+			const message = error instanceof Error && error.message ? error.message : 'No se pudo crear el pedido.';
+			setOrderErrors([message]);
+			toast.error(message);
 		} finally {
 			setBusy(false);
+			submittingOrder.current = false;
 		}
 	}
 
@@ -321,7 +371,17 @@ function Abastecer({ profile }) {
 						productEntry.data = { ...productEntry.data, stock: Number(productEntry.data.stock || 0) + line.unidadesRecibidas };
 					}
 				}
-				for (const productEntry of updatedProducts.values()) transaction.update(productEntry.reference, productEntry.data.modoSabores === 'sabores' ? { sabores: productEntry.data.sabores } : { stock: productEntry.data.stock });
+				const inventoryUpdates = {};
+				for (const productEntry of updatedProducts.values()) {
+					const inventoryUpdate = productEntry.data.modoSabores === 'sabores'
+						? { sabores: productEntry.data.sabores }
+						: { stock: productEntry.data.stock };
+					inventoryUpdates[productEntry.reference.id] = inventoryUpdate;
+					transaction.update(productEntry.reference, {
+						...inventoryUpdate,
+						ultimoPedidoAbastecimientoId: selectedOrder.id,
+					});
+				}
 				transaction.update(methodReference, { saldoTurno: shiftBalance(methodSnapshot.data()) - amount });
 				transaction.set(movementReference, {
 					turnoId: shiftId,
@@ -350,6 +410,7 @@ function Abastecer({ profile }) {
 					metodoId: method.id,
 					metodoNombre: method.nombre,
 					movimientoId: movementReference.id,
+					inventarioActualizado: inventoryUpdates,
 				});
 			});
 			const receivedOrder = {
@@ -391,9 +452,9 @@ function Abastecer({ profile }) {
 		<section className="replenishment-section" aria-labelledby="replenishment-orders-title">
 		<header className="replenishment-header">
 			<h2 id="replenishment-orders-title">Pedidos de abastecimiento</h2>
-			<button className="inventory-create-button replenishment-new-order" type="button" onClick={() => { setMode('creating'); setOrderLines([]); setProductSearch(''); setCategoryFilter('Todas'); }} disabled={!shiftOpen || products.length === 0}><FaPlus aria-hidden="true" /><span>Nuevo pedido</span></button>
+			<button className="inventory-create-button replenishment-new-order" type="button" onClick={() => { setMode('creating'); setOrderLines([]); setOrderErrors([]); setProductSearch(''); setCategoryFilter('Todas'); }} disabled={products.length === 0}><FaPlus aria-hidden="true" /><span>Nuevo pedido</span></button>
 		</header>
-		{!shiftOpen && <p className="replenishment-notice" role="status">{isAdmin ? 'Abre un turno para crear pedidos o registrar recepciones.' : 'Abre un turno para crear pedidos de abastecimiento.'}</p>}
+		{!shiftOpen && <p className="replenishment-notice" role="status">Puedes crear pedidos de abastecimiento sin turno; abre uno para registrar recepciones.</p>}
 		{products.length === 0 && <p className="replenishment-notice">Agrega productos al inventario antes de crear un pedido.</p>}
 		{orders.length === 0 ? <p className="replenishment-empty">Todavía no hay pedidos de abastecimiento.</p> : <div className="replenishment-orders">
 			{orders.map((order) => <article className="replenishment-order" key={order.id}>
@@ -403,11 +464,18 @@ function Abastecer({ profile }) {
 					const receivedLine = order.lineasRecibidas?.[index];
 					return <li key={`${line.productoId}-${line.sabor}-${index}`}>{line.productoNombre}{line.sabor ? ` · ${line.sabor}` : ''}: {order.estado === 'recibido' ? `recibió ${receivedLine?.cantidadRecibida || 0} de ${line.cantidadSolicitada} ${supplyLabel(line.modoAbastecimiento, line.cantidadSolicitada)} (${receivedLine?.unidadesRecibidas || 0} unidades)` : `${line.cantidadSolicitada} ${supplyLabel(line.modoAbastecimiento, line.cantidadSolicitada)} (${line.unidadesSolicitadas} unidades)`}</li>;
 				})}</ul>
-				{order.estado === 'recibido' ? <><p className="replenishment-meta">Recibió {order.recibidoPor} · {timestampLabel(order.recibidoEn)} · Pagado {money(order.montoPagado)}</p>{order.faltantes?.length > 0 && <p className="replenishment-shortage">Faltó: {order.faltantes.map((line) => `${line.productoNombre}${line.sabor ? ` (${line.sabor})` : ''}, ${line.cantidadSolicitada - line.cantidadRecibida} ${supplyLabel(line.modoAbastecimiento, line.cantidadSolicitada - line.cantidadRecibida)}`).join('; ')}.</p>}<button className="replenishment-receive-button" type="button" onClick={() => { const receiptWindow = window.open('', '_blank'); if (receiptWindow) writeReceipt(receiptWindow, order); else toast.warning('Permite las ventanas emergentes para abrir el recibo.'); }}><FaPrint aria-hidden="true" /> Imprimir recibo</button></> : canReceiveReplenishment ? <button className="replenishment-receive-button" type="button" onClick={() => openReceipt(order)} disabled={!shiftOpen}><FaTruck aria-hidden="true" /> Registrar recepción</button> : <p className="replenishment-meta">Pendiente de recepción.</p>}
+				{order.estado === 'recibido' ? <><p className="replenishment-meta">Recibió {order.recibidoPor} · {timestampLabel(order.recibidoEn)} · Pagado {money(order.montoPagado)}</p>{order.faltantes?.length > 0 && <p className="replenishment-shortage">Faltó: {order.faltantes.map((line) => `${line.productoNombre}${line.sabor ? ` (${line.sabor})` : ''}, ${line.cantidadSolicitada - line.cantidadRecibida} ${supplyLabel(line.modoAbastecimiento, line.cantidadSolicitada - line.cantidadRecibida)}`).join('; ')}.</p>}<button className="replenishment-receive-button" type="button" onClick={() => { const receiptWindow = window.open('', '_blank'); if (receiptWindow) writeReceipt(receiptWindow, order); else toast.warning('Permite las ventanas emergentes para abrir el recibo.'); }}><FaPrint aria-hidden="true" /> Imprimir recibo</button></> : canReceiveReplenishment ? <button className={`replenishment-receive-button${!shiftOpen ? ' replenishment-receive-button-unavailable' : ''}`} type="button" aria-disabled={!shiftOpen || busy} title={!shiftOpen ? 'Abre un turno para registrar la recepción y el egreso.' : undefined} onClick={() => {
+					if (busy) return;
+					if (!shiftOpen) {
+						toast.warning('No se puede registrar la recepción porque no hay un turno abierto. Abre un turno para registrar el pago y actualizar el inventario.');
+						return;
+					}
+					openReceipt(order);
+				}}><FaTruck aria-hidden="true" /> Registrar recepción</button> : <p className="replenishment-meta">Pendiente de recepción.</p>}
 			</article>)}
 		</div>}
 		{mode && <div className="inventory-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && closeModal()}><section className="inventory-modal replenishment-modal" role="dialog" aria-modal="true" aria-labelledby="replenishment-modal-title">
-			<header className="inventory-modal-header"><div><p className="app-eyebrow">Turno abierto</p><h2 id="replenishment-modal-title">{mode === 'creating' ? 'Crear pedido' : 'Registrar recepción'}</h2></div><button type="button" aria-label="Cerrar modal" onClick={closeModal}>×</button></header>
+			<header className="inventory-modal-header"><div><p className="app-eyebrow">{mode === 'creating' ? 'Solicitud de abastecimiento' : 'Turno abierto'}</p><h2 id="replenishment-modal-title">{mode === 'creating' ? 'Crear pedido' : 'Registrar recepción'}</h2></div><button type="button" aria-label="Cerrar modal" onClick={closeModal}>×</button></header>
 			{mode === 'creating' ? <form className="inventory-form replenishment-order-form" onSubmit={createOrder}>
 				<div className="replenishment-catalog">
 					<div className="replenishment-catalog-filters">
@@ -434,7 +502,7 @@ function Abastecer({ profile }) {
 							const unitsToAdd = quantity * unitsPerPurchase;
 							const modeNoun = line.modoAbastecimiento === 'mayoreo' ? (quantity === 1 ? 'mayoreo' : 'mayoreos') : supplyLabel(line.modoAbastecimiento, quantity);
 							return <article className="replenishment-cart-item" key={`${line.productoId}-${index}`}>
-								<div className="replenishment-cart-item-heading"><strong>{product?.nombre || 'Producto eliminado'}</strong><button className="replenishment-remove-line" type="button" aria-label={`Quitar ${product?.nombre || 'producto'} del carrito`} onClick={() => setOrderLines((current) => current.filter((_, lineIndex) => lineIndex !== index))}><FaTrash aria-hidden="true" /></button></div>
+								<div className="replenishment-cart-item-heading"><strong>{product?.nombre || 'Producto eliminado'}</strong><button className="replenishment-remove-line" type="button" aria-label={`Quitar ${product?.nombre || 'producto'} del carrito`} onClick={() => removeOrderLine(index)}><FaTrash aria-hidden="true" /></button></div>
 								<div className="replenishment-cart-controls">
 									<fieldset className="replenishment-mode-control"><legend>Forma de compra</legend><div>{modes.map((option) => { const optionUnits = option.value === 'mayoreo' ? Number(line.unidadesMayoreo) || 0 : option.units; return <button type="button" key={option.value} className={line.modoAbastecimiento === option.value ? 'replenishment-mode-option replenishment-mode-option-active' : 'replenishment-mode-option'} aria-pressed={line.modoAbastecimiento === option.value} onClick={() => updateOrderLine(index, 'modoAbastecimiento', option.value)}>{option.label}<small>{optionUnits} {optionUnits === 1 ? 'unidad' : 'unidades'}</small></button>; })}</div></fieldset>
 										{!flavors.length && <label>Cantidad<input className="replenishment-quantity-input" type="text" inputMode="numeric" pattern="[0-9]*" value={line.cantidad} onChange={(event) => updateOrderLine(index, 'cantidad', event.target.value.replace(/\D/g, ''))} /></label>}
@@ -456,10 +524,15 @@ function Abastecer({ profile }) {
 					</div>}
 				</section>
 				<p className="replenishment-line-note">Crear el pedido no aumenta las existencias ni registra un egreso.</p>
-				<button className="auth-submit" type="submit" disabled={busy || !shiftOpen || !orderLines.length}>{busy ? 'Guardando pedido...' : 'Confirmar pedido'}</button>
+				{orderErrors.length > 0 && <div className="replenishment-form-errors" role="alert" aria-live="assertive"><strong>Revisa estos datos para continuar:</strong><ul>{orderErrors.map((error, index) => <li key={`${error}-${index}`}>{error}</li>)}</ul></div>}
+				<button className="auth-submit" type="submit" disabled={busy}>{busy ? 'Guardando pedido...' : 'Confirmar pedido'}</button>
 			</form> : <form className="inventory-form" onSubmit={receiveOrder}>
 				<p className="replenishment-line-note">Pedido {selectedOrder?.id.slice(0, 8).toUpperCase()} · Solicitó {selectedOrder?.solicitadoPor}</p>
-				<label className="replenishment-checkbox"><input type="checkbox" checked={receivedAll} onChange={(event) => setReceivedAll(event.target.checked)} /> Llegó todo lo solicitado</label>
+				<label className={`replenishment-checkbox${receivedAll ? ' replenishment-checkbox-checked' : ''}`}>
+					<input type="checkbox" checked={receivedAll} onChange={(event) => setReceivedAll(event.target.checked)} />
+					<span className="replenishment-checkbox-indicator" aria-hidden="true">{receivedAll && <FaCheck />}</span>
+					<span className="replenishment-checkbox-copy"><strong>¿Llegó todo lo solicitado?</strong><small>Desmarca esta opción si recibiste menos y quieres indicar las cantidades.</small></span>
+				</label>
 				{!receivedAll && selectedOrder?.lineas.map((line, index) => <label key={`${line.productoId}-${line.sabor}-${index}`}>{line.productoNombre}{line.sabor ? ` · ${line.sabor}` : ''} recibido (de {line.cantidadSolicitada} {supplyLabel(line.modoAbastecimiento, line.cantidadSolicitada)})<input type="text" inputMode="numeric" pattern="[0-9]*" value={receivedQuantities[index] ?? '0'} onChange={(event) => setReceivedQuantities((current) => ({ ...current, [index]: event.target.value.replace(/\D/g, '') }))} /></label>)}
 				<label>¿Cuánto se pagó?<input type="text" inputMode="numeric" value={paidAmount ? Number(paidAmount).toLocaleString('es-CO') : ''} onChange={(event) => setPaidAmount(event.target.value.replace(/\D/g, ''))} placeholder="$ 0" required /></label>
 				<label>Método de pago<select value={paymentMethodId} onChange={(event) => setPaymentMethodId(event.target.value)} required><option value="">Selecciona un método</option>{methods.map((method) => <option value={method.id} key={method.id}>{method.nombre} · Saldo {money(shiftBalance(method))}</option>)}</select></label>

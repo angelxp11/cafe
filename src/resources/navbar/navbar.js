@@ -49,7 +49,7 @@ function Navbar({ profile, activeSection, onSelect }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [invoices, setInvoices] = useState([]);
 	const [lowStockCount, setLowStockCount] = useState(0);
-	const adminOnlySections = ['Inventario', 'Empleados', 'Métodos de pago'];
+	const adminOnlySections = ['Inventario', 'Empleados', 'Reportes', 'Métodos de pago'];
 	const visibleNavigationItems = navigationItems.filter((item) => !adminOnlySections.includes(item.id) || profile?.rol === 'admin');
 	const readAt = toDate(profile?.facturasLeidasEn);
 	const today = new Date();

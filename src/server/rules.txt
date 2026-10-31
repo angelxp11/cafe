@@ -30,18 +30,46 @@ service cloud.firestore {
 
     match /pisos/{pisoId} {
       allow read: if request.auth != null;
-      allow create, update, delete: if request.auth != null
-        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin';
+      allow create: if request.auth != null
+        && (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin'
+          || (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'empleado'
+            && request.resource.data.keys().hasOnly(['nombre', 'creadoEn'])
+            && request.resource.data.nombre is string
+            && request.resource.data.creadoEn is timestamp));
+      allow update: if request.auth != null
+        && (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin'
+          || (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'empleado'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nombre'])
+            && request.resource.data.nombre is string));
+      allow delete: if request.auth != null
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol in ['admin', 'empleado'];
     }
 
     match /mesas/{mesaId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
-        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin';
+        && (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin'
+          || (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'empleado'
+            && request.resource.data.keys().hasOnly(['numero', 'pisoId', 'pisoNombre', 'estado'])
+            && request.resource.data.numero is string
+            && request.resource.data.pisoId is string
+            && request.resource.data.pisoNombre is string
+            && request.resource.data.estado == 'disponible'));
       allow delete: if request.auth != null
-        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin';
+        && (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin'
+          || (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'empleado'
+            && !resource.data.keys().hasAny(['grupoId'])
+            && (!resource.data.keys().hasAny(['estado']) || resource.data.estado == 'disponible')
+            && (!resource.data.keys().hasAny(['pedido'])
+              || (resource.data.pedido is list && resource.data.pedido.size() == 0))));
       allow update: if request.auth != null
         && (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin'
+          || (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'empleado'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['numero', 'pisoId', 'pisoNombre', 'estado'])
+            && request.resource.data.numero is string
+            && request.resource.data.pisoId is string
+            && request.resource.data.pisoNombre is string
+            && request.resource.data.estado == 'disponible')
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['grupoId', 'estado'])
             && request.resource.data.grupoId is string
             && request.resource.data.estado == 'combinada')
@@ -99,7 +127,32 @@ service cloud.firestore {
             && request.resource.data.ultimoMovimientoInventarioId is string
             && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimoMovimientoInventarioId)).data.registradaPorCorreo == request.auth.token.email
             && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimoMovimientoInventarioId)).data.tipo in ['completa', 'parcial']
-            && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimoMovimientoInventarioId)).data.inventarioAjustes[productoId].cantidad > 0));
+            && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimoMovimientoInventarioId)).data.inventarioAjustes[productoId].cantidad > 0)
+          || (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'empleado'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'ultimoPedidoAbastecimientoId'])
+            && request.resource.data.stock is number
+            && request.resource.data.stock > resource.data.stock
+            && request.resource.data.ultimoPedidoAbastecimientoId is string
+            && getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.estado == 'recibido'
+            && getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.recibidoPorCorreo == request.auth.token.email
+            && getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.inventarioActualizado.keys().hasAny([productoId])
+            && getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.inventarioActualizado[productoId].stock == request.resource.data.stock
+            && getAfter(/databases/$(database)/documents/movimientos/$(getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.movimientoId)).data.pedidoAbastecimientoId == request.resource.data.ultimoPedidoAbastecimientoId
+            && getAfter(/databases/$(database)/documents/movimientos/$(getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.movimientoId)).data.tipo == 'egreso'
+            && getAfter(/databases/$(database)/documents/movimientos/$(getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.movimientoId)).data.turnoId == getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.turnoRecepcionId
+            && getAfter(/databases/$(database)/documents/movimientos/$(getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.movimientoId)).data.creadoPorCorreo == request.auth.token.email)
+          || (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'empleado'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sabores', 'ultimoPedidoAbastecimientoId'])
+            && request.resource.data.sabores is list
+            && request.resource.data.ultimoPedidoAbastecimientoId is string
+            && getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.estado == 'recibido'
+            && getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.recibidoPorCorreo == request.auth.token.email
+            && getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.inventarioActualizado.keys().hasAny([productoId])
+            && getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.inventarioActualizado[productoId].sabores == request.resource.data.sabores
+            && getAfter(/databases/$(database)/documents/movimientos/$(getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.movimientoId)).data.pedidoAbastecimientoId == request.resource.data.ultimoPedidoAbastecimientoId
+            && getAfter(/databases/$(database)/documents/movimientos/$(getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.movimientoId)).data.tipo == 'egreso'
+            && getAfter(/databases/$(database)/documents/movimientos/$(getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.movimientoId)).data.turnoId == getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.turnoRecepcionId
+            && getAfter(/databases/$(database)/documents/movimientos/$(getAfter(/databases/$(database)/documents/pedidosAbastecimiento/$(request.resource.data.ultimoPedidoAbastecimientoId)).data.movimientoId)).data.creadoPorCorreo == request.auth.token.email));
     }
 
     match /metodosPago/{metodoId} {
@@ -198,16 +251,20 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol in ['admin', 'empleado']
         && request.resource.data.estado == 'pedido'
         && request.resource.data.solicitadoPorCorreo == request.auth.token.email
-        && request.resource.data.turnoPedidoId is string
         && request.resource.data.lineas is list
-        && get(/databases/$(database)/documents/configuracion/turnoActual).data.abierto == true
-        && get(/databases/$(database)/documents/configuracion/turnoActual).data.turnoId == request.resource.data.turnoPedidoId
-        && get(/databases/$(database)/documents/turnos/$(request.resource.data.turnoPedidoId)).data.abierto == true;
+        && ((request.resource.data.keys().hasAny(['turnoPedidoId'])
+            && request.resource.data.turnoPedidoId is string
+            && get(/databases/$(database)/documents/configuracion/turnoActual).data.abierto == true
+            && get(/databases/$(database)/documents/configuracion/turnoActual).data.turnoId == request.resource.data.turnoPedidoId
+            && get(/databases/$(database)/documents/turnos/$(request.resource.data.turnoPedidoId)).data.abierto == true)
+          || (!request.resource.data.keys().hasAny(['turnoPedidoId'])
+            && (!exists(/databases/$(database)/documents/configuracion/turnoActual)
+              || get(/databases/$(database)/documents/configuracion/turnoActual).data.abierto != true)));
       allow update: if request.auth != null
         && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol in ['admin', 'empleado']
         && resource.data.estado == 'pedido'
         && request.resource.data.estado == 'recibido'
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'recibidoEn', 'recibidoPor', 'recibidoPorCorreo', 'turnoRecepcionId', 'llegoCompleto', 'lineasRecibidas', 'faltantes', 'montoPagado', 'metodoId', 'metodoNombre', 'movimientoId'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'recibidoEn', 'recibidoPor', 'recibidoPorCorreo', 'turnoRecepcionId', 'llegoCompleto', 'lineasRecibidas', 'faltantes', 'montoPagado', 'metodoId', 'metodoNombre', 'movimientoId', 'inventarioActualizado'])
         && request.resource.data.recibidoPorCorreo == request.auth.token.email
         && request.resource.data.turnoRecepcionId == get(/databases/$(database)/documents/configuracion/turnoActual).data.turnoId
         && get(/databases/$(database)/documents/configuracion/turnoActual).data.abierto == true
@@ -215,7 +272,8 @@ service cloud.firestore {
         && request.resource.data.llegoCompleto is bool
         && request.resource.data.lineasRecibidas is list
         && request.resource.data.faltantes is list
-        && request.resource.data.montoPagado is number;
+        && request.resource.data.montoPagado is number
+        && request.resource.data.inventarioActualizado is map;
       allow delete: if false;
     }
 

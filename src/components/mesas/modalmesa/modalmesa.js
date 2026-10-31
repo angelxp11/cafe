@@ -33,10 +33,10 @@ function ModalMesa({ floors, editingItem, onClose, onCreated }) {
 			} else {
 				const selectedFloor = floors.find((floor) => floor.id === floorId);
 				const tableData = {
-							numero: tableNumber.trim(),
+					numero: tableNumber.trim(),
 					pisoId: floorId,
 					pisoNombre: selectedFloor.nombre,
-					estado: 'disponible',
+					...(!isEditing ? { estado: 'disponible' } : {}),
 				};
 				if (isEditing) await updateDoc(doc(db, 'mesas', editingItem.id), tableData);
 				else await addDoc(collection(db, 'mesas'), tableData);

@@ -64,7 +64,7 @@ function App() {
 	}, []);
 
 	function renderSection() {
-		if (['Inventario', 'Empleados', 'Métodos de pago'].includes(activeSection) && userProfile?.rol !== 'admin') {
+		if (['Inventario', 'Empleados', 'Reportes', 'Métodos de pago'].includes(activeSection) && userProfile?.rol !== 'admin') {
 			return <Homepage profile={userProfile} />;
 		}
 		if (activeSection === 'Inventario') return <Inventario profile={userProfile} />;

@@ -122,6 +122,16 @@ service cloud.firestore {
             && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimoMovimientoInventarioId)).data.registradaPorCorreo == request.auth.token.email
             && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimoMovimientoInventarioId)).data.tipo in ['completa', 'parcial']
             && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimoMovimientoInventarioId)).data.inventarioAjustes[productoId].cantidad == resource.data.stock - request.resource.data.stock)
+          || (get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol in ['admin', 'empleado']
+            && resource.data.enReversa == true
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'ultimoMovimientoInventarioId'])
+            && request.resource.data.stock is number
+            && request.resource.data.stock > resource.data.stock
+            && request.resource.data.ultimoMovimientoInventarioId is string
+            && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimoMovimientoInventarioId)).data.registradaPorCorreo == request.auth.token.email
+            && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimoMovimientoInventarioId)).data.tipo in ['completa', 'parcial']
+            && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimoMovimientoInventarioId)).data.inventarioAjustes[productoId].enReversa == true
+            && getAfter(/databases/$(database)/documents/facturas/$(request.resource.data.ultimoMovimientoInventarioId)).data.inventarioAjustes[productoId].cantidad == request.resource.data.stock - resource.data.stock)
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sabores', 'ultimoMovimientoInventarioId'])
             && request.resource.data.sabores is list
             && request.resource.data.ultimoMovimientoInventarioId is string
@@ -279,7 +289,7 @@ service cloud.firestore {
 
     match /pagos/{pagoId} {
       allow read: if request.auth != null
-        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol == 'admin';
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.rol in ['admin', 'empleado'];
       allow create: if request.auth != null
         && request.resource.data.mesaId is string
         && request.resource.data.metodoPagoId is string

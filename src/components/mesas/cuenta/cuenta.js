@@ -37,6 +37,15 @@ function getProductStock(product) {
 	};
 }
 
+function getFlavorName(flavor) {
+	return typeof flavor === 'string' ? flavor : flavor?.nombre || '';
+}
+
+function getFlavorStock(flavor) {
+	const stock = Number(typeof flavor === 'string' ? 0 : flavor.stock || 0);
+	return Number.isFinite(stock) ? Math.max(0, stock) : 0;
+}
+
 function Cuenta({ table, profile, onClose }) {
 	const [liveTable, setLiveTable] = useState(table);
 	const [products, setProducts] = useState([]);
@@ -49,6 +58,7 @@ function Cuenta({ table, profile, onClose }) {
 	const [savingOrder, setSavingOrder] = useState(false);
 	const [orderChanged, setOrderChanged] = useState(false);
 	const [paymentOpen, setPaymentOpen] = useState(false);
+	const [selectedFlavorProduct, setSelectedFlavorProduct] = useState(null);
 	const [shiftOpen, setShiftOpen] = useState(false);
 	const [shiftStatusLoaded, setShiftStatusLoaded] = useState(false);
 	const [customers, setCustomers] = useState([]);
@@ -103,20 +113,35 @@ function Cuenta({ table, profile, onClose }) {
 		return FaTag;
 	}
 
-	function addProduct(product) {
+	function addProduct(product, flavorName = '') {
 		const now = Date.now();
+		const itemName = flavorName ? `${product.nombre} (${flavorName})` : product.nombre;
 		setCart((currentCart) => {
-			const existing = currentCart.find((item) => item.id === product.id && now - item.addedAt < 60000);
+			const existing = currentCart.find((item) => item.id === product.id && (item.sabor || '') === flavorName && now - item.addedAt < 60000);
 			if (existing) return currentCart.map((item) => {
 				if (item.lineId !== existing.lineId) return item;
 				const orderedTimes = item.horasPedido?.length ? item.horasPedido : Array.from({ length: item.cantidad }, () => Number(item.addedAt) || now);
 				return { ...item, cantidad: item.cantidad + 1, horasPedido: [...orderedTimes, now] };
 			});
-			return [...currentCart, { ...product, lineId: `${product.id}-${now}`, cantidad: 1, addedAt: now, horasPedido: [now] }];
+			return [...currentCart, { ...product, nombre: itemName, ...(flavorName ? { sabor: flavorName } : {}), lineId: `${product.id}-${flavorName ? `${flavorName}-` : ''}${now}`, cantidad: 1, addedAt: now, horasPedido: [now] }];
 		});
 		setOrderChanged(true);
 		setAnimatedProductId(product.id);
 		window.setTimeout(() => setAnimatedProductId(null), 450);
+	}
+
+	function selectProduct(product) {
+		if (product.modoSabores === 'sabores') {
+			setSelectedFlavorProduct(product);
+			return;
+		}
+		addProduct(product);
+	}
+
+	function selectProductFlavor(flavor) {
+		if (!selectedFlavorProduct) return;
+		addProduct(selectedFlavorProduct, getFlavorName(flavor));
+		setSelectedFlavorProduct(null);
 	}
 
 	function changeQuantity(lineId, amount) {
@@ -171,9 +196,10 @@ function Cuenta({ table, profile, onClose }) {
 		const creditInvoiceReference = doc(db, 'facturas', accountReference.id);
 		const tableIds = table.tableIds?.length ? table.tableIds : [liveTable.id];
 		const separatesCombinedTables = tableIds.length > 1;
-		const orderData = cart.map(({ id, nombre, precioUnidad, cantidad, lineId, addedAt, horasPedido }) => ({
+		const orderData = cart.map(({ id, nombre, sabor, precioUnidad, cantidad, lineId, addedAt, horasPedido }) => ({
 			id,
 			nombre,
+			...(sabor ? { sabor } : {}),
 			precioUnidad: Number(precioUnidad || 0),
 			cantidad,
 			lineId,
@@ -257,7 +283,7 @@ function Cuenta({ table, profile, onClose }) {
 		}
 		setSavingOrder(true);
 		try {
-			const orderData = cart.map(({ id, nombre, precioUnidad, cantidad, lineId, addedAt, horasPedido }) => ({ id, nombre, precioUnidad: Number(precioUnidad || 0), cantidad, lineId, addedAt, horasPedido }));
+			const orderData = cart.map(({ id, nombre, sabor, precioUnidad, cantidad, lineId, addedAt, horasPedido }) => ({ id, nombre, ...(sabor ? { sabor } : {}), precioUnidad: Number(precioUnidad || 0), cantidad, lineId, addedAt, horasPedido }));
 			const mesaData = orderData.length ? {
 				pedido: orderData,
 				pedidoDesde: liveTable.pedidoDesde || Date.now(),
@@ -281,7 +307,7 @@ function Cuenta({ table, profile, onClose }) {
 		const tableReference = doc(db, 'mesas', liveTable.id);
 		const paymentReference = doc(collection(db, 'pagos'));
 		const invoiceReference = doc(collection(db, 'facturas'));
-		const orderData = cart.map(({ id, nombre, precioUnidad, cantidad, lineId, addedAt, horasPedido }) => ({ id, nombre, precioUnidad: Number(precioUnidad || 0), cantidad, lineId, addedAt, horasPedido }));
+		const orderData = cart.map(({ id, nombre, sabor, precioUnidad, cantidad, lineId, addedAt, horasPedido }) => ({ id, nombre, ...(sabor ? { sabor } : {}), precioUnidad: Number(precioUnidad || 0), cantidad, lineId, addedAt, horasPedido }));
 		const paidOrder = paidItems || orderData;
 		const subtotal = paidOrder.reduce((sum, item) => sum + Number(item.precioUnidad || 0) * item.cantidad, 0);
 		let paidTotal = subtotal;
@@ -347,13 +373,19 @@ function Cuenta({ table, profile, onClose }) {
 				if (!product || quantity <= 0) throw new Error('No se pudo validar el producto de la factura.');
 				if (product.data.modoSabores === 'sabores' && product.data.enReversa !== true) {
 					let remaining = quantity;
-					const flavors = (product.data.sabores || []).map((flavor) => {
+					const currentFlavors = product.data.sabores || [];
+					const selectedFlavorIndex = item.sabor
+						? currentFlavors.findIndex((flavor) => getFlavorName(flavor) === item.sabor)
+						: -1;
+					if (item.sabor && selectedFlavorIndex < 0) throw new Error(`El sabor ${item.sabor} ya no está disponible para ${item.nombre}.`);
+					const flavors = currentFlavors.map((flavor, index) => {
+						if (item.sabor && index !== selectedFlavorIndex) return flavor;
 						const stock = Number(typeof flavor === 'string' ? 0 : flavor.stock || 0);
 						const deducted = Math.min(stock, remaining);
 						remaining -= deducted;
 						if (deducted) {
-							const name = typeof flavor === 'string' ? flavor : flavor.nombre;
-						inventoryAdjustments[item.id] = inventoryAdjustments[item.id] || { cantidad: 0, sabores: {}, enReversa: false };
+							const name = getFlavorName(flavor);
+							inventoryAdjustments[item.id] = inventoryAdjustments[item.id] || { cantidad: 0, sabores: {}, enReversa: false };
 							inventoryAdjustments[item.id].sabores[name] = (inventoryAdjustments[item.id].sabores[name] || 0) + deducted;
 							inventoryAdjustments[item.id].cantidad += deducted;
 						}
@@ -362,10 +394,12 @@ function Cuenta({ table, profile, onClose }) {
 					if (remaining > 0) throw new Error(`No hay suficientes existencias de ${item.nombre}.`);
 					product.data = { ...product.data, sabores: flavors };
 				} else if (product.data.modoSabores === 'sabores') {
-					const flavorIndex = (product.data.sabores || []).length ? 0 : -1;
+					const flavorIndex = item.sabor
+						? (product.data.sabores || []).findIndex((flavor) => getFlavorName(flavor) === item.sabor)
+						: (product.data.sabores || []).length ? 0 : -1;
 					if (flavorIndex < 0) throw new Error(`No se puede registrar el inventario en reversa para ${item.nombre} sin sabores configurados.`);
 					const flavor = product.data.sabores[flavorIndex];
-					const flavorName = typeof flavor === 'string' ? flavor : flavor.nombre;
+					const flavorName = getFlavorName(flavor);
 					const flavors = product.data.sabores.map((entry, index) => {
 						if (index !== flavorIndex) return entry;
 						return typeof entry === 'string'
@@ -536,7 +570,7 @@ function Cuenta({ table, profile, onClose }) {
 								{visibleProducts.length === 0 ? <p className="account-empty">No hay productos disponibles.</p> : visibleProducts.map((product) => {
 									const stock = getProductStock(product);
 									const isOutOfStock = stock.total === 0 && product.enReversa !== true;
-									return <button className={`account-product${isOutOfStock ? ' account-product-out-of-stock' : ''}${animatedProductId === product.id ? ' account-product-added' : ''}`} type="button" key={product.id} onClick={() => addProduct(product)} disabled={isOutOfStock} title={stock.label} aria-label={`${product.nombre}, $${Number(product.precioUnidad || 0).toLocaleString('es-CO')}, ${stock.label}`}><span>{product.nombre}</span><strong>${Number(product.precioUnidad || 0).toLocaleString('es-CO')}</strong><span className="account-product-stock" aria-hidden="true">{stock.label}</span></button>;
+									return <button className={`account-product${isOutOfStock ? ' account-product-out-of-stock' : ''}${animatedProductId === product.id ? ' account-product-added' : ''}`} type="button" key={product.id} onClick={() => selectProduct(product)} disabled={isOutOfStock} title={stock.label} aria-label={`${product.nombre}, $${Number(product.precioUnidad || 0).toLocaleString('es-CO')}, ${stock.label}`}><span>{product.nombre}</span><strong>${Number(product.precioUnidad || 0).toLocaleString('es-CO')}</strong><span className="account-product-stock" aria-hidden="true">{stock.label}</span></button>;
 								})}
 							</div>
 						</div>
@@ -544,6 +578,12 @@ function Cuenta({ table, profile, onClose }) {
 				</div>
 			</section>
 			{paymentOpen && <Caja total={total} table={table} items={cart} onClose={() => setPaymentOpen(false)} onPaid={handlePayment} />}
+			{selectedFlavorProduct && <div className="account-modal-backdrop account-credit-backdrop account-flavor-backdrop"><section className="account-credit-modal account-flavor-modal" role="dialog" aria-modal="true" aria-labelledby="account-flavor-title"><header><div><p className="app-eyebrow">Selecciona el sabor</p><h2 id="account-flavor-title">{selectedFlavorProduct.nombre}</h2></div><button type="button" aria-label="Cerrar" onClick={() => setSelectedFlavorProduct(null)}><FaTimes /></button></header><div className="account-credit-customer-list">{(selectedFlavorProduct.sabores || []).map((flavor, index) => {
+				const name = getFlavorName(flavor);
+				const stock = getFlavorStock(flavor);
+				const unavailable = selectedFlavorProduct.enReversa !== true && stock <= 0;
+				return <button type="button" key={`${name}-${index}`} disabled={unavailable} onClick={() => selectProductFlavor(flavor)}><strong>{name}</strong><span>{selectedFlavorProduct.enReversa === true ? 'Devolución' : `Stock: ${stock.toLocaleString('es-CO')}`}</span></button>;
+			})}</div>{(selectedFlavorProduct.sabores || []).length === 0 && <p className="account-empty">Este producto no tiene sabores configurados.</p>}</section></div>}
 			{customerSelectionOpen && <div className="account-modal-backdrop account-credit-backdrop"><section className="account-credit-modal" role="dialog" aria-modal="true" aria-labelledby="credit-customer-title"><header><div><p className="app-eyebrow">Pedido a crédito</p><h2 id="credit-customer-title">Selecciona el cliente</h2></div><button type="button" aria-label="Cerrar" onClick={() => setCustomerSelectionOpen(false)}><FaTimes /></button></header>{customers.length === 0 ? <p className="account-empty">Primero registra un cliente en la sección Clientes.</p> : <div className="account-credit-customer-list">{customers.map((customer) => <button type="button" key={customer.id} disabled={savingCustomerAccount} onClick={() => addOrderToCustomerAccount(customer)}><strong>{customer.nombre}</strong><span>{customer.telefono}</span></button>)}</div>}{savingCustomerAccount && <p role="status">Guardando cuenta del cliente...</p>}</section></div>}
 		</div>
 	);

@@ -4,7 +4,7 @@
 	inset: 0;
 	display: grid;
 	place-items: stretch;
-	background: var(--color-background);
+	background: #f7f2e6c7;
 }
 
 .account-modal {
@@ -301,6 +301,15 @@
 
 .account-credit-backdrop {
 	z-index: 1350;
+}
+
+.account-flavor-backdrop {
+	place-items: center;
+	padding: 20px;
+}
+
+.account-flavor-modal {
+	box-sizing: border-box;
 }
 
 .account-credit-modal {

@@ -5,6 +5,7 @@ import { auth, db } from '../../../server/api';
 import { shiftBalance } from '../../../server/paymentMethods';
 import LoadingScreen from '../../../resources/loading/LoadingScreen';
 import toast from '../../../resources/toast/toast';
+import { getFlavorId, withSharedFlavorStock } from '../sharedFlavors';
 import './abastecer.css';
 
 function supplyUnits(product, mode = product.abastecimiento) {
@@ -75,6 +76,7 @@ function writeReceipt(receiptWindow, order) {
 
 function Abastecer({ profile }) {
 	const [products, setProducts] = useState([]);
+	const [sharedFlavors, setSharedFlavors] = useState([]);
 	const [orders, setOrders] = useState([]);
 	const [methods, setMethods] = useState([]);
 	const [shiftOpen, setShiftOpen] = useState(false);
@@ -99,10 +101,17 @@ function Abastecer({ profile }) {
 	const canAccessReplenishment = isAdmin || isEmployee;
 	const canReceiveReplenishment = isAdmin || isEmployee;
 	const loading = !ordersLoaded || !productsLoaded;
-	const categories = [...new Set(products.map((product) => product.categoria).filter(Boolean))].sort((first, second) => first.localeCompare(second, 'es'));
-	const filteredProducts = products.filter((product) => {
+	const flavorsById = new Map(sharedFlavors.map((flavor) => [flavor.id, flavor]));
+	const productsWithFlavorStock = products.map((product) => withSharedFlavorStock(product, flavorsById));
+	const categories = [...new Set(productsWithFlavorStock.map((product) => product.categoria).filter(Boolean))].sort((first, second) => first.localeCompare(second, 'es'));
+	const filteredProducts = productsWithFlavorStock.filter((product) => {
 		const matchesCategory = categoryFilter === 'Todas' || product.categoria === categoryFilter;
-		const matchesSearch = product.nombre?.toLocaleLowerCase('es-ES').includes(productSearch.trim().toLocaleLowerCase('es-ES'));
+		const search = productSearch.trim().toLocaleLowerCase('es-ES');
+		const matchesProduct = product.nombre?.toLocaleLowerCase('es-ES').includes(search);
+		const matchesFlavor = (product.sabores || []).some((flavor) =>
+			(typeof flavor === 'string' ? flavor : flavor.nombre)?.toLocaleLowerCase('es-ES').includes(search)
+		);
+		const matchesSearch = !search || matchesProduct || matchesFlavor;
 		return matchesCategory && matchesSearch;
 	});
 	const cartLines = orderLines.map((line) => ({
@@ -111,7 +120,7 @@ function Abastecer({ profile }) {
 		nuevoSabor: line.nuevoSabor || '',
 	}));
 	const cartUnitsTotal = cartLines.reduce((total, line) => {
-		const product = products.find((item) => item.id === line.productoId);
+		const product = productsWithFlavorStock.find((item) => item.id === line.productoId);
 		if (!product) return total;
 		const units = line.modoAbastecimiento === 'mayoreo' ? Number(line.unidadesMayoreo) || 0 : supplyUnits(product, line.modoAbastecimiento);
 		const quantity = product.modoSabores === 'sabores'
@@ -128,6 +137,9 @@ function Abastecer({ profile }) {
 			toast.error('No se pudo cargar el inventario para abastecer.');
 			setProductsLoaded(true);
 		});
+		const stopFlavors = onSnapshot(collection(db, 'saboresInventario'), (snapshot) => {
+			setSharedFlavors(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+		}, () => toast.error('No se pudieron cargar los sabores compartidos.'));
 		const orderCollection = collection(db, 'pedidosAbastecimiento');
 		const ordersQuery = canAccessReplenishment ? orderCollection : query(orderCollection, where('solicitadoPorCorreo', '==', employeeEmail));
 		const stopOrders = onSnapshot(ordersQuery, (snapshot) => {
@@ -147,6 +159,7 @@ function Abastecer({ profile }) {
 		}, () => toast.error('No se pudo consultar el turno actual.'));
 		return () => {
 			stopProducts();
+			stopFlavors();
 			stopOrders();
 			stopMethods();
 			stopShift();
@@ -204,7 +217,7 @@ function Abastecer({ profile }) {
 		const validationErrors = [];
 		if (!cartLines.length) validationErrors.push('Agrega al menos un producto al carrito.');
 		cartLines.forEach((line) => {
-			const product = products.find((item) => item.id === line.productoId);
+			const product = productsWithFlavorStock.find((item) => item.id === line.productoId);
 			const productName = product?.nombre || 'Producto eliminado';
 			if (!product) {
 				validationErrors.push(`${productName}: quítalo del carrito porque ya no existe en el inventario.`);
@@ -268,10 +281,12 @@ function Abastecer({ profile }) {
 					if (!factor) throw new Error(`Configura las unidades de abastecimiento de ${product.nombre}.`);
 					const flavor = product.modoSabores === 'sabores' ? (product.sabores || []).find((item) => (typeof item === 'string' ? item : item.nombre) === line.sabor) : null;
 					if (product.modoSabores === 'sabores' && !flavor) throw new Error(`Selecciona un sabor válido para ${product.nombre}.`);
+					if (line.saborId && getFlavorId(flavor) !== line.saborId) throw new Error(`El sabor ${line.sabor} ya no está relacionado con ${product.nombre}.`);
 					return {
 						productoId: line.productoId,
 						productoNombre: product.nombre,
 						sabor: line.sabor || '',
+						...(getFlavorId(flavor) ? { saborId: getFlavorId(flavor) } : {}),
 						modoAbastecimiento: purchaseMode,
 						unidadesPorAbastecimiento: factor,
 						cantidadSolicitada: Number(line.cantidad),
@@ -354,12 +369,38 @@ function Abastecer({ profile }) {
 				if (shiftBalance(methodSnapshot.data()) < amount) throw new Error('El egreso supera el saldo disponible del método de pago.');
 				const productIds = [...new Set(receivedLines.filter((line) => line.unidadesRecibidas > 0).map((line) => line.productoId))];
 				const productSnapshots = await Promise.all(productIds.map((id) => transaction.get(doc(db, 'inventario', id))));
-				const updatedProducts = new Map(productSnapshots.filter((snapshot) => snapshot.exists()).map((snapshot) => [snapshot.id, { reference: doc(db, 'inventario', snapshot.id), data: snapshot.data() }]));
+				const updatedProducts = new Map(productSnapshots.filter((snapshot) => snapshot.exists()).map((snapshot) => [snapshot.id, { reference: doc(db, 'inventario', snapshot.id), data: snapshot.data(), needsUpdate: false }]));
 				if (updatedProducts.size !== productIds.length) throw new Error('Uno de los productos del pedido ya no existe.');
-				for (const line of receivedLines) {
+				const flavorIdsByLine = new Map();
+				receivedLines.forEach((line, index) => {
+					if (!line.sabor || !line.unidadesRecibidas) return;
+					const productEntry = updatedProducts.get(line.productoId);
+					const flavor = (productEntry.data.sabores || []).find((item) => (typeof item === 'string' ? item : item.nombre) === line.sabor);
+					if (!flavor) throw new Error(`No se encontró el sabor ${line.sabor} de ${line.productoNombre}.`);
+					const flavorId = getFlavorId(flavor);
+					if (line.saborId && line.saborId !== flavorId) throw new Error(`El sabor ${line.sabor} ya no está relacionado con ${line.productoNombre}.`);
+					if (flavorId) {
+						flavorIdsByLine.set(index, flavorId);
+						receivedLines[index] = { ...line, saborId: flavorId };
+					}
+				});
+				const sharedFlavorIds = [...new Set(flavorIdsByLine.values())];
+				const sharedFlavorSnapshots = await Promise.all(sharedFlavorIds.map((flavorId) => transaction.get(doc(db, 'saboresInventario', flavorId))));
+				const sharedFlavorStocks = new Map(sharedFlavorSnapshots.filter((snapshot) => snapshot.exists()).map((snapshot) => [snapshot.id, {
+					reference: doc(db, 'saboresInventario', snapshot.id),
+					data: snapshot.data(),
+				}]));
+				if (sharedFlavorStocks.size !== sharedFlavorIds.length) throw new Error('Uno de los sabores compartidos ya no existe.');
+				for (const [index, line] of receivedLines.entries()) {
 					if (!line.unidadesRecibidas) continue;
 					const productEntry = updatedProducts.get(line.productoId);
 					if (line.sabor) {
+						const flavorId = flavorIdsByLine.get(index);
+						if (flavorId) {
+							const sharedFlavor = sharedFlavorStocks.get(flavorId);
+							sharedFlavor.data = { ...sharedFlavor.data, stock: Number(sharedFlavor.data.stock || 0) + line.unidadesRecibidas };
+							continue;
+						}
 						const flavors = (productEntry.data.sabores || []).map((flavor) => {
 							const name = typeof flavor === 'string' ? flavor : flavor.nombre;
 							if (name !== line.sabor) return flavor;
@@ -367,17 +408,29 @@ function Abastecer({ profile }) {
 						});
 						if (!flavors.some((flavor) => (typeof flavor === 'string' ? flavor : flavor.nombre) === line.sabor && typeof flavor !== 'string')) throw new Error(`No se encontró el sabor ${line.sabor} de ${line.productoNombre}.`);
 						productEntry.data = { ...productEntry.data, sabores: flavors };
+						productEntry.needsUpdate = true;
 					} else {
 						productEntry.data = { ...productEntry.data, stock: Number(productEntry.data.stock || 0) + line.unidadesRecibidas };
+						productEntry.needsUpdate = true;
 					}
 				}
 				const inventoryUpdates = {};
 				for (const productEntry of updatedProducts.values()) {
+					if (!productEntry.needsUpdate) continue;
 					const inventoryUpdate = productEntry.data.modoSabores === 'sabores'
 						? { sabores: productEntry.data.sabores }
 						: { stock: productEntry.data.stock };
 					inventoryUpdates[productEntry.reference.id] = inventoryUpdate;
 					transaction.update(productEntry.reference, {
+						...inventoryUpdate,
+						ultimoPedidoAbastecimientoId: selectedOrder.id,
+					});
+				}
+				if (sharedFlavorStocks.size) inventoryUpdates.saboresCompartidos = {};
+				for (const [flavorId, flavor] of sharedFlavorStocks) {
+					const inventoryUpdate = { stock: Number(flavor.data.stock || 0) };
+					inventoryUpdates.saboresCompartidos[flavorId] = inventoryUpdate;
+					transaction.update(flavor.reference, {
 						...inventoryUpdate,
 						ultimoPedidoAbastecimientoId: selectedOrder.id,
 					});
@@ -479,13 +532,19 @@ function Abastecer({ profile }) {
 			{mode === 'creating' ? <form className="inventory-form replenishment-order-form" onSubmit={createOrder}>
 				<div className="replenishment-catalog">
 					<div className="replenishment-catalog-filters">
-						<label>Buscar producto<input type="search" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Escribe el nombre del producto" /></label>
+						<label>Buscar producto o sabor<input type="search" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Ej. malteada o vainilla" /></label>
 						<label>Categoría<select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}><option value="Todas">Todas las categorías</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}</select></label>
 					</div>
+					<p className="replenishment-catalog-hint">Para comprar un sabor, agrega uno de sus productos, selecciónalo en el carrito e indica la cantidad. El stock se sumará al sabor compartido.</p>
 					<div className="replenishment-product-list" aria-label="Productos disponibles">
 						{filteredProducts.length ? filteredProducts.map((product) => <article className="replenishment-product-row" key={product.id}>
-							<div><strong>{product.nombre}</strong><span>{product.categoria || 'Sin categoría'} · {product.modoSabores === 'sabores' ? `${product.sabores?.length || 0} sabores` : `Stock ${Number(product.stock || 0).toLocaleString('es-CO')}`}</span></div>
-							<button className="replenishment-add-button" type="button" onClick={() => addProductToCart(product)} disabled={orderLines.some((line) => line.productoId === product.id)}>{orderLines.some((line) => line.productoId === product.id) ? 'En carrito' : <><FaPlus aria-hidden="true" /><span>Agregar</span></>}</button>
+							<div className="replenishment-product-copy"><strong>{product.nombre}</strong><span>{product.categoria || 'Sin categoría'} · {product.modoSabores === 'sabores' ? `${product.sabores?.length || 0} sabores` : `Stock ${Number(product.stock || 0).toLocaleString('es-CO')}`}</span>
+								{product.modoSabores === 'sabores' && <div className="replenishment-product-flavors" aria-label={`Sabores de ${product.nombre}`}>{product.sabores?.map((flavor) => {
+									const name = typeof flavor === 'string' ? flavor : flavor.nombre;
+									return <span key={typeof flavor === 'string' ? name : flavor.saborId || name}>{name}</span>;
+								})}</div>}
+							</div>
+							<button className="replenishment-add-button" type="button" onClick={() => addProductToCart(product)} disabled={orderLines.some((line) => line.productoId === product.id)}>{orderLines.some((line) => line.productoId === product.id) ? 'En carrito' : <><FaPlus aria-hidden="true" /><span>{product.modoSabores === 'sabores' ? 'Elegir sabores' : 'Agregar'}</span></>}</button>
 						</article>) : <p className="replenishment-empty">No hay productos que coincidan con la búsqueda.</p>}
 					</div>
 				</div>
@@ -493,7 +552,7 @@ function Abastecer({ profile }) {
 					<header className="replenishment-cart-heading"><h3 id="replenishment-cart-title">Carrito</h3><span>{orderLines.length} {orderLines.length === 1 ? 'producto' : 'productos'} · {cartUnitsTotal.toLocaleString('es-CO')} unidades</span></header>
 					{orderLines.length === 0 ? <p className="replenishment-empty">Agrega productos desde la lista para armar el pedido.</p> : <div className="replenishment-cart-list">
 						{cartLines.map((line, index) => {
-							const product = products.find((item) => item.id === line.productoId);
+							const product = productsWithFlavorStock.find((item) => item.id === line.productoId);
 							const flavors = product?.modoSabores === 'sabores' ? product.sabores || [] : [];
 							const modes = product ? supplyModes(product) : [];
 							const selectedMode = modes.find((item) => item.value === line.modoAbastecimiento) || modes[0];

@@ -1,4 +1,5 @@
 import { getLowStockItems } from './stock';
+import { deductSharedFlavorStock, withSharedFlavorStock } from './sharedFlavors';
 
 test('includes general products and flavors at or below their configured threshold', () => {
 	const lowStockItems = getLowStockItems([
@@ -35,4 +36,34 @@ test('does not report reverse-inventory products as low stock', () => {
 	])).toEqual([
 		{ productId: 'regular', productName: 'NORMAL', flavorName: '', stock: 0, threshold: 5 },
 	]);
+});
+
+test('uses the single shared flavor stock for every related product', () => {
+	const sharedFlavors = new Map([['vanilla-id', { nombre: 'VAINILLA', stock: 11, stockMinimo: 3 }]]);
+	const products = [
+		{ id: 'coffee', nombre: 'CAFÉ', modoSabores: 'sabores', sabores: [{ saborId: 'vanilla-id', nombre: 'VAINILLA' }] },
+		{ id: 'milkshake', nombre: 'MALTEADA', modoSabores: 'sabores', sabores: [{ saborId: 'vanilla-id', nombre: 'VAINILLA' }] },
+	].map((product) => withSharedFlavorStock(product, sharedFlavors));
+
+	expect(products.map((product) => product.sabores[0].stock)).toEqual([11, 11]);
+	expect(getLowStockItems(products)).toEqual([]);
+});
+
+test('reports shared stock only once when it is below the shared threshold', () => {
+	const sharedFlavors = new Map([['vanilla-id', { nombre: 'VAINILLA', stock: 2, stockMinimo: 3 }]]);
+	const products = [
+		{ id: 'coffee', nombre: 'CAFÉ', modoSabores: 'sabores', sabores: [{ saborId: 'vanilla-id', nombre: 'VAINILLA' }] },
+		{ id: 'milkshake', nombre: 'MALTEADA', modoSabores: 'sabores', sabores: [{ saborId: 'vanilla-id', nombre: 'VAINILLA' }] },
+	].map((product) => withSharedFlavorStock(product, sharedFlavors));
+
+	expect(getLowStockItems(products)).toEqual([
+		{ productId: 'coffee', productName: 'CAFÉ', flavorName: 'VAINILLA', stock: 2, threshold: 3 },
+	]);
+});
+
+test('prevents linked products from consuming more than the shared flavor stock', () => {
+	const stockAfterFirstProduct = deductSharedFlavorStock(11, 11, 'VAINILLA');
+
+	expect(stockAfterFirstProduct).toBe(0);
+	expect(() => deductSharedFlavorStock(stockAfterFirstProduct, 1, 'VAINILLA')).toThrow('No hay suficientes existencias de VAINILLA.');
 });

@@ -4,6 +4,7 @@ import { signOut } from 'firebase/auth';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../../server/api';
 import { getLowStockItems } from '../../components/inventario/stock';
+import { withSharedFlavorStock } from '../../components/inventario/sharedFlavors';
 import toast from '../toast/toast';
 
 function CoffeeIcon() {
@@ -48,7 +49,8 @@ function toDate(value) {
 function Navbar({ profile, activeSection, onSelect }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [invoices, setInvoices] = useState([]);
-	const [lowStockCount, setLowStockCount] = useState(0);
+	const [inventoryProducts, setInventoryProducts] = useState([]);
+	const [sharedFlavors, setSharedFlavors] = useState([]);
 	const adminOnlySections = ['Inventario', 'Empleados', 'Reportes', 'Métodos de pago'];
 	const visibleNavigationItems = navigationItems.filter((item) => !adminOnlySections.includes(item.id) || profile?.rol === 'admin');
 	const readAt = toDate(profile?.facturasLeidasEn);
@@ -60,17 +62,23 @@ function Navbar({ profile, activeSection, onSelect }) {
 			&& date.getDate() === today.getDate();
 		return isToday && (!readAt || date > readAt);
 	}).length;
+	const flavorsById = new Map(sharedFlavors.map((flavor) => [flavor.id, flavor]));
+	const lowStockCount = getLowStockItems(inventoryProducts.map((product) => withSharedFlavorStock(product, flavorsById))).length;
 
 	useEffect(() => {
 		const unsubscribeInvoices = onSnapshot(collection(db, 'facturas'), (snapshot) => {
 			setInvoices(snapshot.docs.map((item) => item.data()));
 		}, () => toast.error('No se pudieron cargar las notificaciones de facturas.'));
 		const unsubscribeInventory = onSnapshot(collection(db, 'inventario'), (snapshot) => {
-			setLowStockCount(getLowStockItems(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))).length);
+			setInventoryProducts(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
 		}, () => toast.error('No se pudieron cargar las notificaciones de inventario.'));
+		const unsubscribeFlavors = onSnapshot(collection(db, 'saboresInventario'), (snapshot) => {
+			setSharedFlavors(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+		}, () => toast.error('No se pudieron cargar las notificaciones de sabores compartidos.'));
 		return () => {
 			unsubscribeInvoices();
 			unsubscribeInventory();
+			unsubscribeFlavors();
 		};
 	}, []);
 

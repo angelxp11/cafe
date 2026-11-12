@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { collection, deleteDoc, doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, onSnapshot, writeBatch } from 'firebase/firestore';
 import { FaDownload, FaEdit, FaPlus, FaTrash } from 'react-icons/fa';
 import { db } from '../../server/api';
 import LoadingScreen from '../../resources/loading/LoadingScreen';
 import toast from '../../resources/toast/toast';
+import { getFlavorId, withSharedFlavorStock } from './sharedFlavors';
 import { getLowStockItems } from './stock';
 import './inventario.css';
 
@@ -34,12 +35,15 @@ function normalizeFlavors(flavors = []) {
 	return flavors.map((flavor) =>
 		typeof flavor === 'string'
 			? { nombre: flavor, stock: '' }
-			: { nombre: flavor.nombre || '', stock: flavor.stock ?? '' }
+			: flavor.saborId
+				? { saborId: flavor.saborId, nombre: flavor.nombre || '' }
+				: { nombre: flavor.nombre || '', stock: flavor.stock ?? '' }
 	);
 }
 
 function Inventario({ profile }) {
 	const [products, setProducts] = useState([]);
+	const [sharedFlavors, setSharedFlavors] = useState([]);
 	const [categories, setCategories] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [modalOpen, setModalOpen] = useState(false);
@@ -51,14 +55,16 @@ function Inventario({ profile }) {
 	const tableScrollRef = useRef(null);
 	const tableRef = useRef(null);
 	const isAdmin = profile?.rol === 'admin';
-	const lowStockItems = getLowStockItems(products);
+	const flavorsById = new Map(sharedFlavors.map((flavor) => [flavor.id, flavor]));
+	const productsWithFlavorStock = products.map((product) => withSharedFlavorStock(product, flavorsById));
+	const lowStockItems = getLowStockItems(productsWithFlavorStock);
 	const lowStockProductIds = new Set(lowStockItems.map((item) => item.productId));
 	const lowestStockByProduct = new Map();
 	lowStockItems.forEach((item) => {
 		const currentLowest = lowestStockByProduct.get(item.productId);
 		if (currentLowest === undefined || item.stock < currentLowest) lowestStockByProduct.set(item.productId, item.stock);
 	});
-	const sortedProducts = [...products].sort((first, second) => {
+	const sortedProducts = [...productsWithFlavorStock].sort((first, second) => {
 		const firstStock = lowestStockByProduct.get(first.id);
 		const secondStock = lowestStockByProduct.get(second.id);
 		if (firstStock === undefined) return secondStock === undefined ? 0 : 1;
@@ -100,7 +106,7 @@ function Inventario({ profile }) {
 			tableScroll.removeEventListener('scroll', syncFromTable);
 			resizeObserver.disconnect();
 		};
-	}, [products, searchTerm, selectedCategory, isAdmin]);
+	}, [products, sharedFlavors, searchTerm, selectedCategory, isAdmin]);
 
 	useEffect(() => {
 		const unsubscribe = onSnapshot(collection(db, 'inventario'), (snapshot) => {
@@ -110,10 +116,13 @@ function Inventario({ profile }) {
 			toast.error('No se pudieron cargar los productos.');
 			setLoading(false);
 		});
+		const unsubscribeFlavors = onSnapshot(collection(db, 'saboresInventario'), (snapshot) => {
+			setSharedFlavors(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+		}, () => toast.error('No se pudieron cargar los sabores compartidos.'));
 		const unsubscribeCategories = onSnapshot(collection(db, 'categorias'), (snapshot) => {
 			setCategories(snapshot.docs.map((item) => item.data().nombre).filter(Boolean));
 		});
-		return () => { unsubscribe(); unsubscribeCategories(); };
+		return () => { unsubscribe(); unsubscribeFlavors(); unsubscribeCategories(); };
 	}, []);
 
 	function openCreate() {
@@ -155,7 +164,7 @@ function Inventario({ profile }) {
 		}
 
 		const headers = ['Identificador', 'Nombre', 'Categoría', 'Sabores', 'Venta', 'Precio por unidad', 'Precio paquete', 'Unidades por paquete', 'Abastecimiento', 'Unidades por mayoreo', 'Stock', 'Tipo', 'En reversa', 'Ingredientes'];
-		const rows = products.map((product) => [
+		const rows = productsWithFlavorStock.map((product) => [
 			product.identificador,
 			product.nombre,
 			product.categoria,
@@ -180,7 +189,7 @@ function Inventario({ profile }) {
 			toast.warning('No hay productos para descargar.');
 			return;
 		}
-		downloadFile(JSON.stringify(products, null, 2), `inventario-${new Date().toISOString().slice(0, 10)}.json`, 'application/json;charset=utf-8;');
+		downloadFile(JSON.stringify(productsWithFlavorStock, null, 2), `inventario-${new Date().toISOString().slice(0, 10)}.json`, 'application/json;charset=utf-8;');
 	}
 
 	function csvValue(value) {
@@ -224,23 +233,43 @@ function Inventario({ profile }) {
 					</tr>)}</tbody>
 				</table></div></div>
 			)}
-			{modalOpen && isAdmin && <ProductModal product={editingProduct} categories={categories} onClose={() => setModalOpen(false)} />}
+			{modalOpen && isAdmin && <ProductModal product={editingProduct} categories={categories} sharedFlavors={sharedFlavors} onClose={() => setModalOpen(false)} />}
 		</section>
 	);
 }
 
-function ProductModal({ product, categories, onClose }) {
+function ProductModal({ product, categories, sharedFlavors, onClose }) {
 	const [form, setForm] = useState(product ? { ...emptyProduct, ...product, stockMinimo: product.stockMinimo ?? emptyProduct.stockMinimo, sabores: normalizeFlavors(product.sabores) } : emptyProduct);
 	const [saving, setSaving] = useState(false);
+	const [newFlavors, setNewFlavors] = useState([]);
+	const [newFlavorName, setNewFlavorName] = useState('');
+	const [newFlavorStock, setNewFlavorStock] = useState('');
 	const isEditing = Boolean(product && !product.isNew);
 	const update = (field, value) => setForm((current) => ({ ...current, [field]: value }));
 
 	function addIngredient() { update('ingredientes', [...form.ingredientes, { nombre: '', medida: '' }]); }
 	function updateIngredient(index, field, value) { update('ingredientes', form.ingredientes.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item)); }
 	function removeIngredient(index) { update('ingredientes', form.ingredientes.filter((_, itemIndex) => itemIndex !== index)); }
-	function addFlavor() { update('sabores', [...(form.sabores || []), { nombre: '', stock: '' }]); }
-	function updateFlavor(index, field, value) { update('sabores', (form.sabores || []).map((flavor, flavorIndex) => flavorIndex === index ? { ...flavor, [field]: field === 'nombre' ? value.toLocaleUpperCase('es-ES') : value } : flavor)); }
-	function removeFlavor(index) { update('sabores', (form.sabores || []).filter((_, flavorIndex) => flavorIndex !== index)); }
+	function removeFlavor(flavor) { update('sabores', (form.sabores || []).filter((item) => item !== flavor)); }
+	function toggleSharedFlavor(flavor) {
+		const selected = (form.sabores || []).some((item) => getFlavorId(item) === flavor.id);
+		update('sabores', selected
+			? form.sabores.filter((item) => getFlavorId(item) !== flavor.id)
+			: [...form.sabores, { saborId: flavor.id, nombre: flavor.nombre }]);
+	}
+
+	function addSharedFlavor() {
+		const name = newFlavorName.trim().toLocaleUpperCase('es-ES');
+		const stock = newFlavorStock === '' ? NaN : Number(newFlavorStock);
+		const existingName = [...sharedFlavors, ...newFlavors].some((flavor) => flavor.nombre.toLocaleUpperCase('es-ES') === name);
+		if (!name || existingName) { toast.warning('Indica un nombre único para el sabor compartido.'); return; }
+		if (!Number.isInteger(stock) || stock < 0) { toast.warning('Indica un stock inicial válido para el sabor.'); return; }
+		const flavor = { id: doc(collection(db, 'saboresInventario')).id, nombre: name, stock, stockMinimo: Number(form.stockMinimo) || 0 };
+		setNewFlavors((current) => [...current, flavor]);
+		update('sabores', [...form.sabores, { saborId: flavor.id, nombre: name }]);
+		setNewFlavorName('');
+		setNewFlavorStock('');
+	}
 
 	async function save(event) {
 		event.preventDefault();
@@ -256,9 +285,20 @@ function ProductModal({ product, categories, onClose }) {
 			const packagePrice = form.venta === 'paquete' ? Number(form.precioPaquete) || 0 : 0;
 			const stockThreshold = Number(form.stockMinimo);
 			if (form.stockMinimo === '' || !Number.isFinite(stockThreshold) || stockThreshold < 0) { toast.warning('Indica un umbral de notificación de stock válido.'); return; }
-			const data = { identificador: identifier, nombre: form.nombre.trim().toLocaleUpperCase('es-ES'), categoria: category, modoSabores: form.modoSabores, sabores: form.modoSabores === 'sabores' ? form.sabores.filter((flavor) => flavor.nombre.trim()).map((flavor) => ({ nombre: flavor.nombre.trim().toLocaleUpperCase('es-ES'), stock: Number(flavor.stock) || 0 })) : [], venta: form.venta, precioUnidad: form.venta === 'paquete' && unitsPerPackage ? packagePrice / unitsPerPackage : Number(form.precioUnidad) || 0, precioPaquete: packagePrice, unidadesPorPaquete: unitsPerPackage, unidadesPorPaqueteAbastecimiento: supplyPackageUnits, abastecimiento: form.abastecimiento, unidadesMayoreo: form.abastecimiento === 'mayoreo' ? Number(form.mayoreo) || 0 : 0, stock: form.modoSabores === 'sabores' ? 0 : Number(form.stock) || 0, stockMinimo: stockThreshold, tipo: form.tipo, enReversa: form.enReversa === true, ingredientes: form.tipo === 'preparable' ? form.ingredientes.map((item) => ({ nombre: item.nombre.trim().toLocaleUpperCase('es-ES'), medida: item.medida.trim() })) : [] };
-			await setDoc(doc(db, 'inventario', identifier), data);
-			await setDoc(doc(db, 'categorias', category), { nombre: category }, { merge: true });
+			const selectedFlavors = form.modoSabores === 'sabores' ? form.sabores.filter((flavor) => flavor.nombre.trim()) : [];
+			const flavorNames = selectedFlavors.map((flavor) => flavor.nombre.trim().toLocaleUpperCase('es-ES'));
+			if (new Set(flavorNames).size !== flavorNames.length) { toast.warning('No puedes relacionar dos veces el mismo sabor con un producto.'); return; }
+			const data = { identificador: identifier, nombre: form.nombre.trim().toLocaleUpperCase('es-ES'), categoria: category, modoSabores: form.modoSabores, sabores: selectedFlavors.map((flavor) => flavor.saborId
+				? { saborId: flavor.saborId, nombre: flavor.nombre.trim().toLocaleUpperCase('es-ES') }
+				: { nombre: flavor.nombre.trim().toLocaleUpperCase('es-ES'), stock: Number(flavor.stock) || 0 }), venta: form.venta, precioUnidad: form.venta === 'paquete' && unitsPerPackage ? packagePrice / unitsPerPackage : Number(form.precioUnidad) || 0, precioPaquete: packagePrice, unidadesPorPaquete: unitsPerPackage, unidadesPorPaqueteAbastecimiento: supplyPackageUnits, abastecimiento: form.abastecimiento, unidadesMayoreo: form.abastecimiento === 'mayoreo' ? Number(form.mayoreo) || 0 : 0, stock: form.modoSabores === 'sabores' ? 0 : Number(form.stock) || 0, stockMinimo: stockThreshold, tipo: form.tipo, enReversa: form.enReversa === true, ingredientes: form.tipo === 'preparable' ? form.ingredientes.map((item) => ({ nombre: item.nombre.trim().toLocaleUpperCase('es-ES'), medida: item.medida.trim() })) : [] };
+			const batch = writeBatch(db);
+			batch.set(doc(db, 'inventario', identifier), data);
+			batch.set(doc(db, 'categorias', category), { nombre: category }, { merge: true });
+			const selectedFlavorIds = new Set(selectedFlavors.map(getFlavorId).filter(Boolean));
+			newFlavors.filter((flavor) => selectedFlavorIds.has(flavor.id)).forEach((flavor) => {
+				batch.set(doc(db, 'saboresInventario', flavor.id), { nombre: flavor.nombre, stock: flavor.stock, stockMinimo: flavor.stockMinimo });
+			});
+			await batch.commit();
 			toast.success(`Producto ${isEditing ? 'actualizado' : 'creado'}.`);
 			onClose();
 		} catch (error) { toast.error('No se pudo guardar el producto.'); } finally { setSaving(false); }
@@ -271,7 +311,25 @@ function ProductModal({ product, categories, onClose }) {
 			<label>Nombre<input value={form.nombre} onChange={(event) => update('nombre', event.target.value.toLocaleUpperCase('es-ES'))} /></label>
 			<label>Categoría<input list="inventory-categories" value={form.categoria} onChange={(event) => update('categoria', event.target.value.toLocaleUpperCase('es-ES'))} /><datalist id="inventory-categories">{categories.map((category) => <option key={category} value={category} />)}</datalist></label>
 			<div className="inventory-form-grid"><label>Precio por unidad<input type="text" inputMode="numeric" pattern="[0-9.]*" value={formatPrice(form.precioUnidad)} onChange={(event) => update('precioUnidad', getPriceDigits(event.target.value))} /></label>{form.venta === 'paquete' && <label>Precio del paquete<input type="text" inputMode="numeric" pattern="[0-9.]*" value={formatPrice(form.precioPaquete)} onChange={(event) => update('precioPaquete', getPriceDigits(event.target.value))} /></label>}</div>
-			<fieldset><legend>Sabores</legend><label className="inventory-radio"><input type="radio" checked={form.modoSabores === 'general'} onChange={() => update('modoSabores', 'general')} /> Producto general</label><label className="inventory-radio"><input type="radio" checked={form.modoSabores === 'sabores'} onChange={() => { update('modoSabores', 'sabores'); if (!(form.sabores || []).length) addFlavor(); }} /> Producto de sabores</label>{form.modoSabores === 'sabores' && <div className="flavor-list">{(form.sabores || []).map((flavor, index) => <div className="flavor-row" key={index}><input aria-label="Sabor" placeholder="Ej. VAINILLA" value={flavor.nombre} onChange={(event) => updateFlavor(index, 'nombre', event.target.value)} /><input aria-label="Stock del sabor" type="text" inputMode="numeric" pattern="[0-9]*" placeholder="Stock" value={flavor.stock} onChange={(event) => updateFlavor(index, 'stock', getPriceDigits(event.target.value))} /><button type="button" aria-label="Eliminar sabor" onClick={() => removeFlavor(index)}>×</button></div>)}<button className="add-ingredient" type="button" onClick={addFlavor}>+ Añadir sabor</button></div>}</fieldset>
+			<fieldset><legend>Sabores</legend><label className="inventory-radio"><input type="radio" checked={form.modoSabores === 'general'} onChange={() => update('modoSabores', 'general')} /> Producto general</label><label className="inventory-radio"><input type="radio" checked={form.modoSabores === 'sabores'} onChange={() => update('modoSabores', 'sabores')} /> Producto de sabores</label>{form.modoSabores === 'sabores' && <div className="flavor-list">
+				<div className="shared-flavor-info"><span className="shared-flavor-info-icon" aria-hidden="true">i</span><p>El stock es compartido: vender desde cualquier producto relacionado descuenta de la misma existencia.</p></div>
+				<div className="shared-flavor-heading"><div><strong>Sabores disponibles</strong><small>Selecciona los que tendrá este producto.</small></div><span>{form.sabores.filter((flavor) => getFlavorId(flavor)).length} seleccionados</span></div>
+				{sharedFlavors.concat(newFlavors).length > 0 ? <div className="shared-flavor-list">{sharedFlavors.concat(newFlavors).map((flavor) => {
+					const selected = (form.sabores || []).some((item) => getFlavorId(item) === flavor.id);
+					return <label className={`shared-flavor-option${selected ? ' shared-flavor-option-selected' : ''}`} key={flavor.id}>
+						<input className="shared-flavor-checkbox" type="checkbox" checked={selected} onChange={() => toggleSharedFlavor(flavor)} />
+						<span className="shared-flavor-check" aria-hidden="true">{selected ? '✓' : ''}</span>
+						<span className="shared-flavor-copy"><strong>{flavor.nombre}</strong><small>Stock compartido</small></span>
+						<span className="shared-flavor-stock"><small>Existencias</small><strong>{Number(flavor.stock || 0).toLocaleString('es-CO')}</strong></span>
+					</label>;
+				})}</div> : <p className="shared-flavor-empty">Aún no hay sabores. Crea uno abajo para empezar.</p>}
+				{(form.sabores || []).filter((flavor) => !getFlavorId(flavor)).map((flavor, index) => <div className="flavor-row" key={`local-${index}`}><span>{flavor.nombre} · Stock independiente: {flavor.stock}</span><button type="button" aria-label={`Eliminar sabor ${flavor.nombre}`} onClick={() => removeFlavor(flavor)}>×</button></div>)}
+				<div className="shared-flavor-create">
+					<div className="shared-flavor-create-heading"><strong>Crear sabor compartido</strong><small>El stock inicial quedará disponible para los productos que lo relaciones.</small></div>
+					<div className="inventory-form-grid"><label>Nombre del sabor<input value={newFlavorName} onChange={(event) => setNewFlavorName(event.target.value.toLocaleUpperCase('es-ES'))} placeholder="Ej. VAINILLA" /></label><label>Stock inicial<input type="text" inputMode="numeric" pattern="[0-9]*" value={newFlavorStock} onChange={(event) => setNewFlavorStock(getPriceDigits(event.target.value))} placeholder="0" /></label></div>
+					<button className="add-ingredient" type="button" onClick={addSharedFlavor}>+ Crear y relacionar sabor</button>
+				</div>
+			</div>}</fieldset>
 			<div className="inventory-form-grid"><label>Forma de venta<select value={form.venta} onChange={(event) => update('venta', event.target.value)}><option value="unidad">Por unidad</option><option value="paquete">Por paquete</option></select></label>{form.venta === 'paquete' && <label>Unidades por paquete<input type="text" inputMode="numeric" pattern="[0-9]*" value={form.unidadesPorPaquete} onChange={(event) => update('unidadesPorPaquete', getPriceDigits(event.target.value))} /></label>}</div>
 			<div className="inventory-form-grid"><label>Abastecimiento<select value={form.abastecimiento} onChange={(event) => update('abastecimiento', event.target.value)}><option value="unidad">Por unidad</option><option value="paquete">Por paquete</option><option value="mayoreo">Por mayoreo</option></select></label>{form.abastecimiento === 'paquete' && <label>Unidades por paquete de abastecimiento<input type="text" inputMode="numeric" pattern="[0-9]*" value={form.unidadesPorPaqueteAbastecimiento || form.unidadesPorPaquete} onChange={(event) => update('unidadesPorPaqueteAbastecimiento', getPriceDigits(event.target.value))} /></label>}{form.abastecimiento === 'mayoreo' && <label>Unidades por mayoreo<input type="text" inputMode="numeric" pattern="[0-9]*" value={form.mayoreo} onChange={(event) => update('mayoreo', getPriceDigits(event.target.value))} /></label>}</div>
 			<div className="inventory-form-grid">{form.modoSabores === 'general' && <label>Stock<input type="text" inputMode="numeric" pattern="[0-9]*" value={form.stock} onChange={(event) => update('stock', getPriceDigits(event.target.value))} /></label>}<label>Notificar stock cuando sea igual o menor a<input type="text" inputMode="numeric" pattern="[0-9]*" required value={form.stockMinimo} onChange={(event) => update('stockMinimo', getPriceDigits(event.target.value))} /><small>Se aplica al stock general y a cada sabor.</small></label></div>

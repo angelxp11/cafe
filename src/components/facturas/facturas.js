@@ -5,6 +5,7 @@ import { auth, db } from '../../server/api';
 import { shiftBalance } from '../../server/paymentMethods';
 import LoadingScreen from '../../resources/loading/LoadingScreen';
 import toast from '../../resources/toast/toast';
+import { getFlavorId } from '../inventario/sharedFlavors';
 import './facturas.css';
 
 function localDateValue(date) {
@@ -169,6 +170,13 @@ function Facturas({ profile }) {
 				const productSnapshots = await Promise.all(productIds.map((productId) => transaction.get(doc(db, 'inventario', productId))));
 				const productsById = new Map(productSnapshots.filter((snapshot) => snapshot.exists()).map((snapshot) => [snapshot.id, { reference: doc(db, 'inventario', snapshot.id), data: snapshot.data() }]));
 				if (productsById.size !== productIds.length) throw new Error('No se pudo restaurar el inventario porque falta un producto.');
+				const sharedFlavorIds = [...new Set(Object.values(adjustments).flatMap((adjustment) => Object.keys(adjustment.saboresCompartidos || {})))];
+				const sharedFlavorSnapshots = await Promise.all(sharedFlavorIds.map((flavorId) => transaction.get(doc(db, 'saboresInventario', flavorId))));
+				const sharedFlavors = new Map(sharedFlavorSnapshots.filter((snapshot) => snapshot.exists()).map((snapshot) => [snapshot.id, {
+					reference: doc(db, 'saboresInventario', snapshot.id),
+					data: snapshot.data(),
+				}]));
+				if (sharedFlavors.size !== sharedFlavorIds.length) throw new Error('No se pudo restaurar el inventario porque falta un sabor compartido.');
 				const cancellationAmounts = {};
 				for (const { methodId, amount, reference, snapshot } of methodEntries) {
 					const movementId = `cancel-${invoice.id}-${methodId}`;
@@ -190,11 +198,21 @@ function Facturas({ profile }) {
 						creadoEn: serverTimestamp(),
 					});
 				}
+				const sharedFlavorAdjustments = new Map();
+				Object.values(adjustments).forEach((adjustment) => {
+					Object.entries(adjustment.saboresCompartidos || {}).forEach(([flavorId, value]) => {
+						const totals = sharedFlavorAdjustments.get(flavorId) || { restore: 0, remove: 0 };
+						if (adjustment.enReversa === true) totals.remove += Number(value) || 0;
+						else totals.restore += Number(value) || 0;
+						sharedFlavorAdjustments.set(flavorId, totals);
+					});
+				});
 				for (const productId of productIds) {
 					const product = productsById.get(productId);
 					const adjustment = adjustments[productId];
 					if (product.data.modoSabores === 'sabores') {
 						const flavors = (product.data.sabores || []).map((flavor) => {
+							if (getFlavorId(flavor)) return flavor;
 							const name = typeof flavor === 'string' ? flavor : flavor.nombre;
 							const quantity = Number(adjustment.sabores?.[name]) || 0;
 							const currentStock = Number(flavor.stock || 0);
@@ -210,6 +228,14 @@ function Facturas({ profile }) {
 						const nextStock = adjustment.enReversa === true ? Math.max(0, currentStock - quantity) : currentStock + quantity;
 						transaction.update(product.reference, { stock: nextStock, ultimoMovimientoInventarioId: invoice.id });
 					}
+				}
+				for (const [flavorId, totals] of sharedFlavorAdjustments) {
+					const flavor = sharedFlavors.get(flavorId);
+					const stock = Number(flavor.data.stock || 0);
+					transaction.update(flavor.reference, {
+						stock: Math.max(0, stock + totals.restore - totals.remove),
+						ultimoMovimientoInventarioId: invoice.id,
+					});
 				}
 				transaction.update(invoiceReference, {
 					cancelada: true,

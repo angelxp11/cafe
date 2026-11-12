@@ -7,6 +7,7 @@ import { auth, db } from '../../../server/api';
 import { amountWithCommission, paymentCommission, shiftBalance } from '../../../server/paymentMethods';
 import LoadingScreen from '../../../resources/loading/LoadingScreen';
 import toast from '../../../resources/toast/toast';
+import { deductSharedFlavorStock, getFlavorId, getFlavorName, withSharedFlavorStock } from '../../inventario/sharedFlavors';
 import Caja from './caja/caja';
 
 function cleanDescription(value) {
@@ -37,10 +38,6 @@ function getProductStock(product) {
 	};
 }
 
-function getFlavorName(flavor) {
-	return typeof flavor === 'string' ? flavor : flavor?.nombre || '';
-}
-
 function getFlavorStock(flavor) {
 	const stock = Number(typeof flavor === 'string' ? 0 : flavor.stock || 0);
 	return Number.isFinite(stock) ? Math.max(0, stock) : 0;
@@ -49,6 +46,7 @@ function getFlavorStock(flavor) {
 function Cuenta({ table, profile, onClose }) {
 	const [liveTable, setLiveTable] = useState(table);
 	const [products, setProducts] = useState([]);
+	const [sharedFlavors, setSharedFlavors] = useState([]);
 	const [selectedCategory, setSelectedCategory] = useState('');
 	const [cart, setCart] = useState([]);
 	const [loading, setLoading] = useState(true);
@@ -98,9 +96,15 @@ function Cuenta({ table, profile, onClose }) {
 		});
 	}, []);
 
-	const categories = useMemo(() => [...new Set(products.map((product) => product.categoria).filter(Boolean))], [products]);
+	useEffect(() => onSnapshot(collection(db, 'saboresInventario'), (snapshot) => {
+		setSharedFlavors(snapshot.docs.map((flavor) => ({ id: flavor.id, ...flavor.data() })));
+	}, () => toast.error('No se pudieron cargar los sabores compartidos.')), []);
+
+	const flavorsById = new Map(sharedFlavors.map((flavor) => [flavor.id, flavor]));
+	const productsWithFlavorStock = products.map((product) => withSharedFlavorStock(product, flavorsById));
+	const categories = useMemo(() => [...new Set(productsWithFlavorStock.map((product) => product.categoria).filter(Boolean))], [productsWithFlavorStock]);
 	const activeCategory = selectedCategory || categories[0] || '';
-	const visibleProducts = products.filter((product) => product.categoria === activeCategory);
+	const visibleProducts = productsWithFlavorStock.filter((product) => product.categoria === activeCategory);
 	const total = cart.reduce((sum, item) => sum + Number(item.precioUnidad || 0) * item.cantidad, 0);
 
 	function categoryIcon(category) {
@@ -366,6 +370,14 @@ function Cuenta({ table, profile, onClose }) {
 			const inventorySnapshots = await Promise.all(inventoryIds.map((productId) => transaction.get(doc(db, 'inventario', productId))));
 			const inventoryProducts = new Map(inventorySnapshots.filter((snapshot) => snapshot.exists()).map((snapshot) => [snapshot.id, { reference: doc(db, 'inventario', snapshot.id), data: snapshot.data() }]));
 			if (inventoryProducts.size !== inventoryIds.length) throw new Error('Uno de los productos ya no existe en el inventario.');
+			const sharedFlavorIds = [...new Set([...inventoryProducts.values()].flatMap(({ data }) => (data.sabores || []).map(getFlavorId).filter(Boolean)))];
+			const sharedFlavorSnapshots = await Promise.all(sharedFlavorIds.map((flavorId) => transaction.get(doc(db, 'saboresInventario', flavorId))));
+			const sharedFlavorStocks = new Map(sharedFlavorSnapshots.filter((snapshot) => snapshot.exists()).map((snapshot) => [snapshot.id, {
+				reference: doc(db, 'saboresInventario', snapshot.id),
+				data: snapshot.data(),
+			}]));
+			if (sharedFlavorStocks.size !== sharedFlavorIds.length) throw new Error('Uno de los sabores compartidos ya no existe.');
+			const changedSharedFlavors = new Set();
 			const inventoryAdjustments = {};
 			for (const item of paidOrder) {
 				const product = inventoryProducts.get(item.id);
@@ -380,16 +392,25 @@ function Cuenta({ table, profile, onClose }) {
 					if (item.sabor && selectedFlavorIndex < 0) throw new Error(`El sabor ${item.sabor} ya no está disponible para ${item.nombre}.`);
 					const flavors = currentFlavors.map((flavor, index) => {
 						if (item.sabor && index !== selectedFlavorIndex) return flavor;
-						const stock = Number(typeof flavor === 'string' ? 0 : flavor.stock || 0);
-						const deducted = Math.min(stock, remaining);
+						const saborId = getFlavorId(flavor);
+						const sharedFlavor = saborId ? sharedFlavorStocks.get(saborId) : null;
+						const stock = Number(saborId ? sharedFlavor?.data.stock || 0 : typeof flavor === 'string' ? 0 : flavor.stock || 0);
+						const deducted = saborId && item.sabor ? remaining : Math.min(stock, remaining);
 						remaining -= deducted;
 						if (deducted) {
-							const name = getFlavorName(flavor);
-							inventoryAdjustments[item.id] = inventoryAdjustments[item.id] || { cantidad: 0, sabores: {}, enReversa: false };
-							inventoryAdjustments[item.id].sabores[name] = (inventoryAdjustments[item.id].sabores[name] || 0) + deducted;
+							inventoryAdjustments[item.id] = inventoryAdjustments[item.id] || { cantidad: 0, sabores: {}, saboresCompartidos: {}, enReversa: false };
+							if (saborId) {
+								if (!sharedFlavor) throw new Error(`No se encontró el sabor ${getFlavorName(flavor)}.`);
+								sharedFlavor.data = { ...sharedFlavor.data, stock: deductSharedFlavorStock(stock, deducted, getFlavorName(flavor)) };
+								changedSharedFlavors.add(saborId);
+								inventoryAdjustments[item.id].saboresCompartidos[saborId] = (inventoryAdjustments[item.id].saboresCompartidos[saborId] || 0) + deducted;
+							} else {
+								const name = getFlavorName(flavor);
+								inventoryAdjustments[item.id].sabores[name] = (inventoryAdjustments[item.id].sabores[name] || 0) + deducted;
+							}
 							inventoryAdjustments[item.id].cantidad += deducted;
 						}
-						return deducted && typeof flavor !== 'string' ? { ...flavor, stock: stock - deducted } : flavor;
+						return deducted && !saborId && typeof flavor !== 'string' ? { ...flavor, stock: stock - deducted } : flavor;
 					});
 					if (remaining > 0) throw new Error(`No hay suficientes existencias de ${item.nombre}.`);
 					product.data = { ...product.data, sabores: flavors };
@@ -400,15 +421,23 @@ function Cuenta({ table, profile, onClose }) {
 					if (flavorIndex < 0) throw new Error(`No se puede registrar el inventario en reversa para ${item.nombre} sin sabores configurados.`);
 					const flavor = product.data.sabores[flavorIndex];
 					const flavorName = getFlavorName(flavor);
+					const saborId = getFlavorId(flavor);
+					const sharedFlavor = saborId ? sharedFlavorStocks.get(saborId) : null;
+					if (saborId && !sharedFlavor) throw new Error(`No se encontró el sabor ${flavorName}.`);
 					const flavors = product.data.sabores.map((entry, index) => {
-						if (index !== flavorIndex) return entry;
+						if (index !== flavorIndex || saborId) return entry;
 						return typeof entry === 'string'
 							? { nombre: entry, stock: quantity }
 							: { ...entry, stock: Number(entry.stock || 0) + quantity };
 					});
+					if (sharedFlavor) {
+						sharedFlavor.data = { ...sharedFlavor.data, stock: Number(sharedFlavor.data.stock || 0) + quantity };
+						changedSharedFlavors.add(saborId);
+					}
 					product.data = { ...product.data, sabores: flavors };
-					inventoryAdjustments[item.id] = inventoryAdjustments[item.id] || { cantidad: 0, sabores: {}, enReversa: true };
-					inventoryAdjustments[item.id].sabores[flavorName] = (inventoryAdjustments[item.id].sabores[flavorName] || 0) + quantity;
+					inventoryAdjustments[item.id] = inventoryAdjustments[item.id] || { cantidad: 0, sabores: {}, saboresCompartidos: {}, enReversa: true };
+					if (saborId) inventoryAdjustments[item.id].saboresCompartidos[saborId] = (inventoryAdjustments[item.id].saboresCompartidos[saborId] || 0) + quantity;
+					else inventoryAdjustments[item.id].sabores[flavorName] = (inventoryAdjustments[item.id].sabores[flavorName] || 0) + quantity;
 					inventoryAdjustments[item.id].cantidad += quantity;
 				} else if (product.data.enReversa === true) {
 					product.data = { ...product.data, stock: Number(product.data.stock || 0) + quantity };
@@ -425,6 +454,10 @@ function Cuenta({ table, profile, onClose }) {
 					...(product.data.modoSabores === 'sabores' ? { sabores: product.data.sabores } : { stock: product.data.stock }),
 					ultimoMovimientoInventarioId: invoiceReference.id,
 				});
+			}
+			for (const flavorId of changedSharedFlavors) {
+				const flavor = sharedFlavorStocks.get(flavorId);
+				transaction.update(flavor.reference, { stock: Number(flavor.data.stock || 0), ultimoMovimientoInventarioId: invoiceReference.id });
 			}
 							if (separatesCombinedTables) {
 								tableIds.forEach((tableId) => transaction.update(doc(db, 'mesas', tableId), { pedido: [], pedidoDesde: 0, ultimoPedidoEn: 0, grupoId: deleteField(), descripcion: deleteField(), estado: 'disponible' }));
